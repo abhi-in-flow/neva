@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, setToken } from '../lib/api.js';
 import { generateName } from '../lib/names.js';
-import { LANGUAGES } from '../lib/languages.js';
+import { LANGUAGES, formatLanguageChip } from '../lib/languages.js';
 import '../styles/join.css';
 
 // Brief 01: two steps, no scroll each. Step 1 = identity (tagline hero,
@@ -112,8 +112,9 @@ export default function Join({ onJoined }) {
         common_langs: langs,
       });
       setToken(session_token);
-      // Queued-screen copy personalizes on the declared native language.
+      // Queued-screen copy personalizes on the declared languages.
       localStorage.setItem('ddf_native_lang', native);
+      localStorage.setItem('ddf_common_langs', JSON.stringify(langs));
       onJoined();
     } catch {
       setCta('join-failed');
@@ -169,7 +170,7 @@ export default function Join({ onJoined }) {
         <section className="join-step" aria-hidden={step !== 1} inert={step !== 1 ? '' : undefined}>
           <h1 className="hero">
             Speak your <span className="hero-accent">language.</span>
-            <small>Win points. Teach an AI.</small>
+            <small>English has had enough turns.</small>
           </h1>
 
           <div className="field">
@@ -260,6 +261,32 @@ export default function Join({ onJoined }) {
             />
           )}
           {error?.where === 'common' && <p className="field-error">{error.text}</p>}
+
+          {(common.size > 0 || otherLang.trim()) && (
+            <div className="lang-summary" aria-live="polite">
+              <p className="lang-summary-title">Your languages</p>
+              <ul className="lang-summary-list">
+                {native && (
+                  <li>
+                    <span className="lang-summary-role">Mother tongue</span>
+                    <span className="lang-summary-chip">{formatLanguageChip(native)}</span>
+                  </li>
+                )}
+                {[...common].map((code) => (
+                  <li key={code}>
+                    <span className="lang-summary-role">Also speak</span>
+                    <span className="lang-summary-chip">{formatLanguageChip(code)}</span>
+                  </li>
+                ))}
+                {otherLang.trim() && (
+                  <li>
+                    <span className="lang-summary-role">Also speak</span>
+                    <span className="lang-summary-chip">{otherLang.trim()}</span>
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
 
           <div className="cta-block">
             <button

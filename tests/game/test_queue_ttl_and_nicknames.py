@@ -282,3 +282,123 @@ async def test_active_refresh_prevents_eviction_then_matches(tmp_path) -> None:
     assert stale.id not in members
     assert stale.id not in store.queue
     logger.info("test_active_refresh_prevents_eviction_then_matches completed")
+
+
+async def test_match_when_partner_lists_other_native(tmp_path) -> None:
+    """Pair players whose only shared language is one player's mother tongue.
+
+    Join stores native separately from ``common_langs``. Without speakable-set
+    matching, Assamese native + Telugu native who listed Assamese never paired.
+
+    Args:
+        tmp_path: Temporary data directory.
+    """
+    logger.info("test_match_when_partner_lists_other_native called")
+    store = MemoryGameStore()
+    await _seed_minimal_deck(store)
+    service = GameService(
+        store,
+        data_dir=tmp_path,
+        rounds_cap=20,
+        config=GameFeatureConfig(result_hold_seconds=0),
+    )
+
+    assamese = await service.join(
+        nickname="Nimbu Dynamo",
+        native_lang="as",
+        common_langs=["hi", "en"],
+    )
+    telugu = await service.join(
+        nickname="Monsoon Rockstar",
+        native_lang="te",
+        common_langs=["as", "kn"],
+    )
+    player_a = await service.resolve_player(assamese.session_token)
+    player_b = await service.resolve_player(telugu.session_token)
+
+    first = await service.request_pair(player_a)
+    assert first["status"] == "queued"
+    second = await service.request_pair(player_b)
+    assert second["status"] == "matched"
+
+    pair = await store.get_active_pair(player_a.id)
+    assert pair is not None
+    assert pair.common_lang == "as"
+    assert {pair.player_a, pair.player_b} == {player_a.id, player_b.id}
+    logger.info("test_match_when_partner_lists_other_native completed")
+
+
+async def test_match_complementary_native_and_common(tmp_path) -> None:
+    """Pair English↔Hindi natives who each listed the other's language only.
+
+    Args:
+        tmp_path: Temporary data directory.
+    """
+    logger.info("test_match_complementary_native_and_common called")
+    store = MemoryGameStore()
+    await _seed_minimal_deck(store)
+    service = GameService(
+        store,
+        data_dir=tmp_path,
+        rounds_cap=20,
+        config=GameFeatureConfig(result_hold_seconds=0),
+    )
+
+    english = await service.join(
+        nickname="EnSpeaker",
+        native_lang="en",
+        common_langs=["hi"],
+    )
+    hindi = await service.join(
+        nickname="HiSpeaker",
+        native_lang="hi",
+        common_langs=["en"],
+    )
+    player_a = await service.resolve_player(english.session_token)
+    player_b = await service.resolve_player(hindi.session_token)
+
+    await service.request_pair(player_a)
+    result = await service.request_pair(player_b)
+    assert result["status"] == "matched"
+    pair = await store.get_active_pair(player_a.id)
+    assert pair is not None
+    assert pair.common_lang == "en"
+    logger.info("test_match_complementary_native_and_common completed")
+
+
+async def test_prefer_english_when_shared_with_other_langs(tmp_path) -> None:
+    """Prefer English card labels when English is among several shared langs.
+
+    Args:
+        tmp_path: Temporary data directory.
+    """
+    logger.info("test_prefer_english_when_shared_with_other_langs called")
+    store = MemoryGameStore()
+    await _seed_minimal_deck(store)
+    service = GameService(
+        store,
+        data_dir=tmp_path,
+        rounds_cap=20,
+        config=GameFeatureConfig(result_hold_seconds=0),
+    )
+
+    assamese = await service.join(
+        nickname="AsPlayer",
+        native_lang="as",
+        common_langs=["hi", "en"],
+    )
+    hindi = await service.join(
+        nickname="HiPlayer",
+        native_lang="hi",
+        common_langs=["en", "kn"],
+    )
+    player_a = await service.resolve_player(assamese.session_token)
+    player_b = await service.resolve_player(hindi.session_token)
+
+    await service.request_pair(player_a)
+    result = await service.request_pair(player_b)
+    assert result["status"] == "matched"
+    pair = await store.get_active_pair(player_a.id)
+    assert pair is not None
+    assert pair.common_lang == "en"
+    logger.info("test_prefer_english_when_shared_with_other_langs completed")

@@ -1,0 +1,218 @@
+/* Demo-grade /admin surface — separate from player festival UI. */
+
+.admin-root {
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  padding: var(--s-4);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.admin-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-5);
+}
+
+.admin-brand {
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  margin: 0;
+}
+
+.admin-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.admin-nav button {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: var(--r-sm);
+  padding: var(--s-2) var(--s-3);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.admin-nav button[aria-current='page'] {
+  background: var(--marigold);
+  color: var(--ink-warm);
+  border-color: var(--marigold-deep);
+}
+
+.admin-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--s-4);
+  margin-bottom: var(--s-4);
+}
+
+.admin-panel h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  margin: 0 0 var(--s-3);
+}
+
+.admin-muted {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.admin-error {
+  background: var(--failure-surface);
+  border: 1px solid var(--failure-edge);
+  border-radius: var(--r-sm);
+  padding: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+
+.admin-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  align-items: center;
+  margin-bottom: var(--s-3);
+}
+
+.admin-input,
+.admin-textarea,
+.admin-select {
+  width: 100%;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  border-radius: var(--r-sm);
+  padding: var(--s-3);
+  font: inherit;
+}
+
+.admin-textarea {
+  min-height: 220px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--text-sm);
+}
+
+.admin-btn {
+  border: none;
+  background: var(--marigold);
+  color: var(--ink-warm);
+  border-radius: var(--r-sm);
+  padding: var(--s-2) var(--s-4);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-btn.secondary {
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.admin-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.admin-table th,
+.admin-table td {
+  text-align: left;
+  padding: var(--s-2);
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.admin-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--r-full);
+  background: var(--raised);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-badge.live { background: var(--tile-leaf); color: var(--ink); }
+.admin-badge.ready { background: var(--tile-sky); color: var(--ink); }
+.admin-badge.generating { background: var(--marigold-deep); color: var(--ink); }
+.admin-badge.failed { background: var(--failure-edge); color: var(--ink-warm); }
+.admin-badge.healthy { background: var(--tile-leaf); }
+.admin-badge.unhealthy { background: var(--failure-edge); color: var(--ink-warm); }
+
+.admin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--s-3);
+}
+
+.admin-stat {
+  background: var(--raised);
+  border-radius: var(--r-sm);
+  padding: var(--s-3);
+}
+
+.admin-stat strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+}
+
+.admin-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--s-3);
+}
+
+.admin-card {
+  background: var(--raised);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.admin-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+  background: var(--bg);
+}
+
+.admin-card figcaption {
+  padding: var(--s-2);
+  font-size: var(--text-xs);
+}
+
+.admin-pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--text-xs);
+  background: var(--bg);
+  border-radius: var(--r-sm);
+  padding: var(--s-3);
+  max-height: 240px;
+  overflow: auto;
+}
+
+.admin-linkish {
+  background: none;
+  border: none;
+  color: var(--marigold);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  text-decoration: underline;
+}

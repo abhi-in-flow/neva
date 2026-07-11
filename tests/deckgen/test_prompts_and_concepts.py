@@ -11,6 +11,8 @@ import json
 import logging
 from pathlib import Path
 
+from google.genai import types
+
 from deckgen.concepts import CONCEPTS, concept_by_id, select_concepts
 from deckgen.config import (
     DEFAULT_CARD_COUNT,
@@ -84,6 +86,10 @@ def test_verify_prompt_checks_humor_and_schema_unchanged() -> None:
     }
     assert set(VERIFY_RESPONSE_SCHEMA["required"]) == required
     assert "visibly_absurd" not in VERIFY_RESPONSE_SCHEMA["properties"]
+    nullable_field = VERIFY_RESPONSE_SCHEMA["properties"]["competing_interpretation"]
+    resolved_field = types.Schema.model_validate(nullable_field)
+    assert resolved_field.type == types.Type.STRING
+    assert resolved_field.nullable is True
 
 
 def test_curated_concepts_are_scene_level_and_deck_sized() -> None:

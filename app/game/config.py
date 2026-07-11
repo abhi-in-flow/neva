@@ -39,6 +39,9 @@ class GameFeatureConfig:
             ``enqueued_at`` is older than this many seconds. Frontend
             ``POST /api/pair/request`` heartbeats (~2s) refresh the timestamp;
             the default (~30s) sits comfortably above that interval.
+        preferred_common_lang: When this tag is in the shared speakable set,
+            use it as the pair's ``common_lang`` so demo card labels stay in
+            English. Falls back to the first shared language otherwise.
         nickname_alloc_max_attempts: Upper bound on insert retries when
             reserving a case-insensitively unique nickname.
     """
@@ -56,6 +59,7 @@ class GameFeatureConfig:
     ffprobe_timeout_s: float = 5.0
     ffmpeg_timeout_s: float = 10.0
     matchmaking_queue_ttl_seconds: float = 30.0
+    preferred_common_lang: str = "en"
     nickname_alloc_max_attempts: int = 48
 
 
@@ -73,13 +77,15 @@ def get_game_config() -> GameFeatureConfig:
     """
     logger.info(
         "get_game_config called audio_min=%s audio_max=%s points=%s "
-        "max_attempts=%s result_hold=%s queue_ttl_s=%s nickname_attempts=%s",
+        "max_attempts=%s result_hold=%s queue_ttl_s=%s preferred_common=%s "
+        "nickname_attempts=%s",
         _CONFIG.audio_min_duration_s,
         _CONFIG.audio_max_duration_s,
         _CONFIG.points_per_validation,
         _CONFIG.max_guess_attempts,
         _CONFIG.result_hold_seconds,
         _CONFIG.matchmaking_queue_ttl_seconds,
+        _CONFIG.preferred_common_lang,
         _CONFIG.nickname_alloc_max_attempts,
     )
     return _CONFIG

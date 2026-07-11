@@ -36,6 +36,9 @@ from app.game.types import (
     metrics_snapshot_from_aggregates,
     normalize_common_langs,
     resolve_label_text,
+    pick_common_lang,
+    shared_languages,
+    speakable_languages,
 )
 
 logger = logging.getLogger(__name__)
@@ -355,6 +358,7 @@ class PostgresGameStore:
                 if me is None:
                     return None
                 my_langs = normalize_common_langs(me["common_langs"])
+                my_speakable = speakable_languages(me["native_lang"], my_langs)
 
                 # Lock self queue row so concurrent matchers serialize on us.
                 await conn.fetchrow(
@@ -388,8 +392,12 @@ class PostgresGameStore:
                           AND p.native_lang <> $2
                           AND EXISTS (
                               SELECT 1
-                              FROM jsonb_array_elements_text(p.common_langs) AS lang
-                              WHERE lang = ANY($3::text[])
+                              FROM (
+                                  SELECT jsonb_array_elements_text(p.common_langs) AS lang
+                                  UNION ALL
+                                  SELECT p.native_lang
+                              ) AS partner_speakable
+                              WHERE partner_speakable.lang = ANY($3::text[])
                           )
                         ORDER BY q.enqueued_at ASC
                         FOR UPDATE OF q SKIP LOCKED
@@ -401,7 +409,7 @@ class PostgresGameStore:
                     """,
                     player_id,
                     me["native_lang"],
-                    my_langs,
+                    my_speakable,
                     ttl,
                 )
                 if partner is None:
@@ -409,8 +417,23 @@ class PostgresGameStore:
                     return None
 
                 partner_langs = normalize_common_langs(partner["common_langs"])
-                shared = [lang for lang in my_langs if lang in set(partner_langs)]
-                common_lang = shared[0]
+                partner_speakable = speakable_languages(
+                    partner["native_lang"],
+                    partner_langs,
+                )
+                shared = shared_languages(my_speakable, partner_speakable)
+                if not shared:
+                    logger.info(
+                        "PostgresGameStore.try_match no_shared_after_claim "
+                        "player_id=%s partner_id=%s",
+                        player_id,
+                        partner["player_id"],
+                    )
+                    return None
+                common_lang = pick_common_lang(
+                    shared,
+                    preferred=get_game_config().preferred_common_lang,
+                )
                 # Earlier enqueued player speaks first.
                 my_queue = await conn.fetchrow(
                     "SELECT enqueued_at FROM matchmaking_queue WHERE player_id = $1",

@@ -15,7 +15,7 @@ Same peacock-teal world as join; no warm-accent CTA exists here (The One Action 
 Production-ready; this one phase screen plus its match-found exit beat; shipped-quality interactivity; built against mock fixtures (including a long-wait fixture).
 
 ## 5. Layout Strategy
-Top third: searching hero — pulsing voice-wave/radar motif with one rotating status line ("Finding you a worthy rival…", "Sniffing out a Hindi speaker…"). Below: live leaderboard as a simple ranked list (rank, nickname, score — no cards): top N from `leaderboard_top`, player's own row pinned at bottom with their rank when not in top N. Leaderboard is the entertainment, hero is the status.
+Top third: searching hero — pulsing voice-wave/radar motif with one rotating status line ("Finding you a worthy rival…", "Sniffing out a Hindi speaker…"). Under the status copy, show the player's declared languages as dual-script chips (mother tongue + also speak), pulled from join localStorage. Below: live leaderboard as a simple ranked list (rank, nickname, score — no cards): top N from `leaderboard_top`, player's own row pinned at bottom with their rank when not in top N. Leaderboard is the entertainment, hero is the status.
 
 ## 6. Key States
 - **Searching (0–20s):** pulse motif + rotating copy pool (~6 lines, shuffled)

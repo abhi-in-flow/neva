@@ -1,10 +1,11 @@
 """Atomic deck publication to Postgres and local deck image storage.
 
-Writes card PNGs through a staging directory under ``data/decks/``, inserts
-all cards in one transaction, then transitions the deck to ``ready`` or
-``live``. Callers may publish into an operator-pre-created ``generating`` row;
-that row is locked and updated rather than reinserted. On failure, staged/final
-files are cleaned up and the deck is marked ``failed`` when reachable.
+Writes card images with extensions derived from their encoded bytes through a
+staging directory under ``data/decks/``, inserts all cards in one transaction,
+then transitions the deck to ``ready`` or ``live``. Callers may publish into an
+operator-pre-created ``generating`` row; that row is locked and updated rather
+than reinserted. On failure, staged/final files are cleaned up and the deck is
+marked ``failed`` when reachable.
 
 Dry-run and unit tests use ``InMemoryPublisher`` which records operations
 without touching the database or ``DATA_DIR``.
@@ -36,6 +37,32 @@ from deckgen.config import (
 logger = logging.getLogger(__name__)
 
 
+def image_file_extension(image_bytes: bytes) -> str:
+    """Return a safe file extension for supported encoded image bytes.
+
+    Args:
+        image_bytes: Complete encoded image payload returned by Gemini.
+
+    Returns:
+        One of ``.png``, ``.jpg``, or ``.webp`` based on file signatures.
+
+    Raises:
+        ValueError: When the payload is empty or has an unsupported signature.
+    """
+    logger.info("image_file_extension called byte_length=%s", len(image_bytes))
+    if image_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if image_bytes.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if (
+        len(image_bytes) >= 12
+        and image_bytes.startswith(b"RIFF")
+        and image_bytes[8:12] == b"WEBP"
+    ):
+        return ".webp"
+    raise ValueError("unsupported generated image encoding")
+
+
 @dataclass
 class CardRecord:
     """One verified card ready for publication.
@@ -43,7 +70,7 @@ class CardRecord:
     Attributes:
         card_id: UUID assigned before insert (also used in image filenames).
         concept_id: Curated concept id (for decoy mapping / logging).
-        image_bytes: PNG bytes to write under the deck directory.
+        image_bytes: Encoded PNG, JPEG, or WebP bytes to write under the deck directory.
         label_common: Multilingual label map stored as JSONB.
         decoy_card_ids: Same-deck card UUID strings for ``cards.decoys``.
         verified: Always True for published cards.
@@ -176,7 +203,11 @@ class InMemoryPublisher:
             self.live_decks.append(resolved_deck_id)
         else:
             self.ready_decks.append(resolved_deck_id)
-        paths = [f"{RELATIVE_DECKS_DIR}/{resolved_deck_id}/{c.card_id}.png" for c in cards]
+        paths = [
+            f"{RELATIVE_DECKS_DIR}/{resolved_deck_id}/{c.card_id}"
+            f"{image_file_extension(c.image_bytes)}"
+            for c in cards
+        ]
         result = PublishResult(
             deck_id=resolved_deck_id,
             status=final_status,
@@ -281,8 +312,10 @@ class PostgresPublisher:
                 raise FileExistsError(f"deck image directory already exists: {deck_dir}")
             staging_dir.mkdir(parents=True, exist_ok=False)
             for card in cards:
-                rel = f"{RELATIVE_DECKS_DIR}/{resolved_deck_id}/{card.card_id}.png"
-                (staging_dir / f"{card.card_id}.png").write_bytes(card.image_bytes)
+                extension = image_file_extension(card.image_bytes)
+                filename = f"{card.card_id}{extension}"
+                rel = f"{RELATIVE_DECKS_DIR}/{resolved_deck_id}/{filename}"
+                (staging_dir / filename).write_bytes(card.image_bytes)
                 image_paths.append(rel)
                 logger.info(
                     "PostgresPublisher staged image path=%s byte_length=%s",

@@ -10,4 +10,5 @@ node_modules/
 frontend/dist/
 data/*
 !data/.gitkeep
+unsloth_compiled_cache/
 *.log

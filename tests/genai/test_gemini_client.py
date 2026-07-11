@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import httpx
 import pytest
 from google.genai import types
 
@@ -527,6 +528,7 @@ def test_is_transient_error_classification() -> None:
     assert is_transient_error(api_error(429))
     assert is_transient_error(api_error(503, "UNAVAILABLE"))
     assert is_transient_error(TimeoutError())
+    assert is_transient_error(httpx.RemoteProtocolError("server disconnected"))
     assert not is_transient_error(api_error(400, "INVALID_ARGUMENT"))
     assert not is_transient_error(ValueError("nope"))
     logger.info("test_is_transient_error_classification completed")

@@ -21,7 +21,7 @@ A multiplayer, turn-based charades game that converts bored, linguistically dive
 
 ## 3. Core game loop (the mechanic IS the annotation)
 
-1. **Pairing:** match two players who share a common major language (Hindi/English/Assamese etc.) but declare *different* native tongues. Strangers only — no self-pairing, no same-native-language pairing. Language declaration at onboarding.
+1. **Pairing:** match two players who declare *different* native tongues and share at least one speakable language (`native` ∪ known). Prefer English as the pair `common_lang` when both know it so demo labels stay English. Strangers only — no self-pairing. Language declaration at onboarding.
 2. **Elicitation (A's turn):** show image **first, alone**. A speaks their description in their native tongue (push-to-talk, phone to mouth). **Only after audio is captured**, reveal the semantic label / common-language text for tap-to-confirm. Sequence is non-negotiable — showing text before speech contaminates the corpus with literal translations.
 3. **Validation (B's turn):** B hears A's audio and sees a grid of 4–6 common-language text options (decoys drawn from the same deck). Correct pick = pair validated. B never sees the image.
 4. **Scoring:** points on validated pairs only (kills lazy/garbage clue incentive). Turn-based alternation. Leaderboard. Saturday reward = leaderboard glory; hospital deployment reward = vending machine / canteen credits.

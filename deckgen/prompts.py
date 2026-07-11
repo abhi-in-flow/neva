@@ -80,7 +80,10 @@ VERIFY_RESPONSE_SCHEMA: dict[str, object] = {
         "depicts_label": {"type": "boolean"},
         "has_text": {"type": "boolean"},
         "has_ambiguity": {"type": "boolean"},
-        "competing_interpretation": {"type": ["string", "null"]},
+        "competing_interpretation": {
+            "type": "string",
+            "nullable": True,
+        },
         "cultural_ok": {"type": "boolean"},
         "verdict": {"type": "string", "enum": ["pass", "fail"]},
         "reason": {"type": "string"},

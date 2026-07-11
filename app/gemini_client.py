@@ -33,6 +33,7 @@ from collections.abc import Awaitable, Callable, Mapping, MutableMapping, Sequen
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
+import httpx
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
@@ -901,7 +902,10 @@ def is_transient_error(exc: BaseException) -> bool:
         "is_transient_error called exc_type=%s",
         type(exc).__name__,
     )
-    if isinstance(exc, (TimeoutError, asyncio.TimeoutError, ConnectionError)):
+    if isinstance(
+        exc,
+        (TimeoutError, asyncio.TimeoutError, ConnectionError, httpx.TransportError),
+    ):
         return True
     if isinstance(exc, genai_errors.APIError):
         code = getattr(exc, "code", None)

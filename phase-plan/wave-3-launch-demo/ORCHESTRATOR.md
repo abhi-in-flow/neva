@@ -25,11 +25,14 @@ honest, and repeatable judging demonstration.
 
 ## Demo order
 
-1. Show the generated regional deck and throughput instrumentation.
+1. Show the generated regional deck and throughput instrumentation (`/admin`
+   Decks or `scripts.deck_admin`).
 2. Run one speaker/guesser round emphasizing image-before-label.
-3. Show the validated record moving through the zero-touch gauntlet.
-4. Close on live Tier 1 counts, languages, time, and cost/sample.
-5. Show base-versus-tuned output only if the pre-agreed go/no-go passes.
+3. Show the validated record moving through the zero-touch gauntlet
+   (`/admin` Metrics + Traces, optional `scripts.pipeline_view`).
+4. Close on live Tier 1 counts, languages, time, and cost/sample (`/tv`).
+5. Show base-versus-tuned output only if the pre-agreed go/no-go passes
+   (`tune.demo`; see `ADMIN-DEMO-RUNBOOK.md`).
 
 ## Completion
 

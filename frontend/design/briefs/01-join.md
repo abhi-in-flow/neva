@@ -17,8 +17,8 @@ Production-ready fidelity; this one flow (two steps + mic moment); shipped-quali
 ## 5. Layout Strategy
 Two steps, each fitting one phone screen with zero scroll:
 
-- **Step 1 — identity:** Tagline hero in the display face ("Speak your language. Win points. Teach an AI."), pre-filled generated nickname (large, editable, shuffle die button), native-language selection. Warm CTA "Next" in thumb reach.
-- **Step 2 — languages:** "What else do you speak?" chip grid of the fixed 12 (each chip: English + own script, e.g. *Assamese · অসমীয়া*), native language auto-excluded, free-text "other" chip last, ≥1 required. CTA "Let's play 🎤" with mic microcopy beneath ("We'll ask for your mic — that's the whole game!").
+- **Step 1 — identity:** Tagline hero in the display face ("Speak your language. English has had enough turns."), pre-filled generated nickname (large, editable, shuffle die button), native-language selection. Warm CTA "Next" in thumb reach.
+- **Step 2 — languages:** "What else do you speak?" chip grid of the fixed 12 (each chip: English + own script, e.g. *Assamese · অসমীয়া*), native language auto-excluded, free-text "other" chip last, ≥1 required. A "Your languages" summary lists mother tongue + known languages with dual-script labels before the CTA. CTA "Let's play 🎤" with mic microcopy beneath ("We'll ask for your mic — that's the whole game!").
 
 Minimal step indicator (1/2). Keyboard never covers a CTA (text entry only on step 1's upper half).
 

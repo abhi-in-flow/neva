@@ -303,6 +303,47 @@
   animation: nudge var(--t-med) var(--ease-out);
 }
 
+.lang-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  text-align: left;
+}
+
+.lang-summary-title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.lang-summary-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.lang-summary-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-3);
+}
+
+.lang-summary-role {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  min-width: 7.5rem;
+}
+
+.lang-summary-chip {
+  font-weight: 700;
+  font-size: var(--text-body);
+}
+
 @keyframes nudge {
   0% { transform: translateX(0); }
   30% { transform: translateX(-5px); }

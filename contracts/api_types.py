@@ -3,8 +3,9 @@
 The backend owns game rules. The frontend renders StateResponse and submits
 requests defined here; it must not infer, cache, or manufacture hidden state.
 These models also freeze the unauthenticated venue-TV leaderboard and
-throughput-metrics payloads so backend and frontend work can proceed in
-parallel without inventing field names.
+throughput-metrics payloads, plus demo-grade operator admin shapes for deck
+control and redacted observability reads, so backend and frontend work can
+proceed in parallel without inventing field names.
 """
 
 from __future__ import annotations
@@ -87,6 +88,73 @@ class AdminDeckDetail(AdminDeckSummary):
 
 class AdminDeckListResponse(BaseModel):
     decks: list[AdminDeckSummary] = Field(default_factory=list)
+
+
+class AdminApiCallSummary(BaseModel):
+    """One redacted GenAI instrumentation row for the operator traces panel."""
+
+    id: UUID
+    model: str
+    operation: str
+    status: str
+    latency_ms: int | None = None
+    estimated_cost_microusd: int | None = None
+    created_at: datetime
+    request_meta: dict[str, object] = Field(default_factory=dict)
+    response_meta: dict[str, object] = Field(default_factory=dict)
+
+
+class AdminApiCallListResponse(BaseModel):
+    calls: list[AdminApiCallSummary] = Field(default_factory=list)
+
+
+class AdminWorkerHeartbeat(BaseModel):
+    """One worker liveness row suitable for the operator status strip."""
+
+    worker_id: str
+    process_id: int | None = None
+    status: str | None = None
+    started_at: datetime | None = None
+    heartbeat_at: datetime | None = None
+    healthy: bool = False
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
+class AdminWorkerStatusResponse(BaseModel):
+    workers: list[AdminWorkerHeartbeat] = Field(default_factory=list)
+    any_healthy: bool = False
+
+
+class AdminJobSummary(BaseModel):
+    """One gauntlet job row without audio paths or participant nicknames."""
+
+    id: UUID
+    kind: str
+    turn_id: UUID | None = None
+    status: str
+    tries: int = 0
+    last_error: str | None = None
+    created_at: datetime
+    available_at: datetime | None = None
+    claimed_at: datetime | None = None
+    completed_at: datetime | None = None
+
+
+class AdminJobListResponse(BaseModel):
+    jobs: list[AdminJobSummary] = Field(default_factory=list)
+    counts_by_status: dict[str, int] = Field(default_factory=dict)
+
+
+class AdminPipelineFunnelResponse(BaseModel):
+    """Aggregate eligibility funnel for the admin metrics panel."""
+
+    validated_pairs: int = 0
+    packaged_records: int = 0
+    training_eligible_pairs: int = 0
+    gauntlet_pass_rate: float | None = None
+    jobs_pending: int = 0
+    jobs_processing: int = 0
+    jobs_failed: int = 0
 
 
 class JoinRequest(BaseModel):

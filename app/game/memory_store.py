@@ -26,8 +26,10 @@ from app.game.types import (
     PlayerStats,
     StateBundle,
     TurnRecord,
+    pick_common_lang,
     resolve_label_text,
     shared_languages,
+    speakable_languages,
 )
 
 logger = logging.getLogger(__name__)
@@ -253,7 +255,10 @@ class MemoryGameStore:
             other = self.players[other_id]
             if other.native_lang == me.native_lang:
                 continue
-            shared = shared_languages(me.common_langs, other.common_langs)
+            shared = shared_languages(
+                speakable_languages(me.native_lang, me.common_langs),
+                speakable_languages(other.native_lang, other.common_langs),
+            )
             if not shared:
                 continue
             if self._previously_paired(player_id, other_id) and self._has_alternate(
@@ -262,7 +267,10 @@ class MemoryGameStore:
                 exclude={other_id},
             ):
                 continue
-            common_lang = shared[0]
+            common_lang = pick_common_lang(
+                shared,
+                preferred=cfg.preferred_common_lang,
+            )
             # Deterministic player_a / player_b by enqueue order.
             if self.queue[player_id] <= self.queue[other_id]:
                 player_a, player_b = player_id, other_id
@@ -320,7 +328,10 @@ class MemoryGameStore:
             other = self.players[other_id]
             if other.native_lang == me.native_lang:
                 continue
-            if shared_languages(me.common_langs, other.common_langs):
+            if shared_languages(
+                speakable_languages(me.native_lang, me.common_langs),
+                speakable_languages(other.native_lang, other.common_langs),
+            ):
                 return True
         return False
 

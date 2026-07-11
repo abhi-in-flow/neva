@@ -54,8 +54,12 @@ The label still arrives only after a successful audio upload.
 Matchmaking remains active while the backend reports onboarding or queued.
 Successful queued responses retry with bounded jitter, closing the concurrent
 `SKIP LOCKED` enqueue race without overlapping requests. Same-native pairing
-remains forbidden; the waiting screen explains that players need different
-native languages and at least one shared known language. Its QR only shares the
+remains forbidden; compatibility uses the intersection of each player's
+speakable set (`native_lang` ∪ `common_langs`) so a partner who lists the
+other's mother tongue as a known language can still match. When English is in
+that shared set, the pair's `common_lang` prefers `en` so demo card labels stay
+in English. The waiting screen explains that players need different native
+languages and at least one shared known language. Its QR only shares the
 onboarding URL—matchmaking itself remains automatic and backend-owned.
 
 Queue liveness uses `POST /api/pair/request` as the heartbeat: every enqueue
@@ -71,6 +75,17 @@ bounded to the 32-character schema/API limit. Uniqueness is enforced by a
 Postgres unique index on `lower(nickname)` plus insert-retry on unique
 violations (never a read-then-write race). The join response payload shape is
 unchanged; clients observe the persisted nickname via `/api/state`.
+
+Join and Queued UIs show readable dual-script labels for the player's mother
+tongue and known languages (for example `Assamese · অসমীয়া`) so venue demos
+can confirm selections at a glance.
+
+### Shared Gemini client resilience
+
+Transient HTTP disconnects (`httpx.TransportError`, including
+`RemoteProtocolError`) are treated as retryable. Structured-output schemas are
+sanitized for the Gemini Developer API (no `additionalProperties`; nullable
+fields use SDK-compatible shapes).
 
 ### Deck engine
 
@@ -92,6 +107,10 @@ in ``deckgen/concepts.py`` and operator input via
 ``scripts.deck_admin generate``) both supply scene-level funny situations,
 including a pink-elephant gag.
 
+Publish writes filenames from image magic bytes (``.png``, ``.jpg``, or
+``.webp``). Nano Banana often returns JPEG even when operators expect PNG;
+extension mismatch is treated as a publisher bug, not a model failure.
+
 ### Operator deck control
 
 A demo-safe administration boundary lets an operator replace the generation
@@ -107,6 +126,25 @@ demotes the previous live deck to ready and promotes the selected deck to
 `status = 'live'` contract while using exactly one operator-selected deck.
 The API uses a demo-only `X-Deck-Admin-Key`, and the matching CLI supports
 no-network dry runs for generation and activation commands.
+
+### Operator admin web surface
+
+The React build also serves a separate `/admin` root (pathname fork beside
+`/tv`). After the operator pastes the shared admin key into sessionStorage,
+the surface provides:
+
+1. **Decks** — generate from pasted/uploaded concepts JSON, list, review
+   cards, and activate.
+2. **Metrics** — poll public `GET /api/metrics`, deck `generation_metrics`,
+   and protected aggregate eligibility funnel counts.
+3. **Traces** — protected reads of redacted `api_calls`, worker heartbeats,
+   and gauntlet jobs. Prompt text, audio, and secrets are never returned to
+   the browser.
+4. **Tune** — static terminal runbook only; Gemma train/compare stays in
+   `tune/demo.py` and never touches Postgres.
+
+Per-utterance WebM→FLAC→gate walkthroughs remain on the operator CLI
+(`python -m scripts.pipeline_view`) so participant audio stays off the web UI.
 
 ### Cleaning gauntlet
 
@@ -137,12 +175,11 @@ The frozen integration contracts are:
 
 ## Runtime
 
-- Windows host with PowerShell
-- Python 3.12 managed by `uv`
-- Postgres 16 in Docker
+- WSL2/Linux preferred for the repo (native filesystem, Bash, `uv` + Python 3.12)
+- Postgres 16 in Docker; API/worker/frontend via `docker compose`
 - FastAPI/Uvicorn
 - Local blob storage under `data/`
-- Public HTTPS access through a named Cloudflare tunnel
+- Optional public HTTPS access through a named Cloudflare tunnel
 
 ## Delivery orchestration
 
@@ -178,6 +215,8 @@ Wave 1 backend work is implemented and verified:
   and throughput/cost metrics;
 - operator-supplied deck concepts, protected generation/review/activation API,
   and a dry-run-capable administration CLI;
+- `/admin` web surface for decks, metrics, and redacted model traces, plus
+  `scripts.pipeline_view` for sanitized per-utterance stage walks;
 - isolated audio-first Gemma E4B QLoRA scaffolding and explicit text fallback.
 
 Arindam's frontend remains independently owned and can now switch from mock

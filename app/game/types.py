@@ -571,12 +571,44 @@ def resolve_label_text(label_common: dict[str, Any] | Any, common_lang: str) -> 
     return ""
 
 
-def shared_languages(a: list[str], b: list[str]) -> list[str]:
-    """Return languages present in both players' common-language lists.
+def speakable_languages(native_lang: str, common_langs: list[str]) -> list[str]:
+    """Build the ordered set of languages a player can use for matching.
+
+    Join UX stores the mother tongue separately from ``common_langs``, so a
+    partner who lists that native as a shared language would otherwise never
+    intersect. Matching therefore uses native ∪ common while still requiring
+    distinct mother tongues elsewhere.
 
     Args:
-        a: First player's common languages.
-        b: Second player's common languages.
+        native_lang: Declared mother tongue.
+        common_langs: Additional languages the player knows.
+
+    Returns:
+        Deduplicated list with ``native_lang`` first (when non-empty), then
+        ``common_langs`` in declaration order.
+    """
+    logger.info(
+        "speakable_languages called native_lang=%s common_count=%s",
+        native_lang,
+        len(common_langs),
+    )
+    seen: set[str] = set()
+    out: list[str] = []
+    for lang in (native_lang, *common_langs):
+        text = str(lang).strip()
+        if text and text not in seen:
+            seen.add(text)
+            out.append(text)
+    logger.info("speakable_languages completed count=%s", len(out))
+    return out
+
+
+def shared_languages(a: list[str], b: list[str]) -> list[str]:
+    """Return languages present in both ordered language lists.
+
+    Args:
+        a: First player's languages (typically speakable set).
+        b: Second player's languages (typically speakable set).
 
     Returns:
         Intersection preserving ``a``'s order.
@@ -590,3 +622,39 @@ def shared_languages(a: list[str], b: list[str]) -> list[str]:
     shared = [lang for lang in a if lang in b_set]
     logger.info("shared_languages completed shared_count=%s", len(shared))
     return shared
+
+
+def pick_common_lang(
+    shared: list[str],
+    *,
+    preferred: str = "en",
+) -> str:
+    """Choose the pair's display/common language from a non-empty shared set.
+
+    Prefers ``preferred`` (demo default ``en``) so card labels stay in English
+    whenever both players listed it. Otherwise returns the first shared tag.
+
+    Args:
+        shared: Non-empty intersection of speakable languages.
+        preferred: Language tag to prefer when present.
+
+    Returns:
+        Selected common-language tag.
+
+    Raises:
+        ValueError: When ``shared`` is empty.
+    """
+    logger.info(
+        "pick_common_lang called shared_count=%s preferred=%s",
+        len(shared),
+        preferred,
+    )
+    if not shared:
+        raise ValueError("shared languages must be non-empty")
+    preferred_tag = preferred.strip()
+    if preferred_tag and preferred_tag in shared:
+        logger.info("pick_common_lang completed via_preferred lang=%s", preferred_tag)
+        return preferred_tag
+    chosen = shared[0]
+    logger.info("pick_common_lang completed via_first lang=%s", chosen)
+    return chosen

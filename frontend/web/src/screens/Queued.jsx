@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Leaderboard from '../components/Leaderboard.jsx';
 import JoinQr from '../components/JoinQr.jsx';
-import { langByCode } from '../lib/languages.js';
+import { formatLanguageChip, langByCode } from '../lib/languages.js';
 import '../styles/queued.css';
 
 // Brief 02: searching hero + leaderboard below; ~20s escalation into
@@ -13,8 +13,18 @@ const COPY_ROTATE_MS = 4000;
 const RECRUIT_AFTER_MS =
   Number(new URLSearchParams(window.location.search).get('recruitAfter')) || 20000;
 
-function searchingLines() {
-  const nativeCode = localStorage.getItem('ddf_native_lang');
+function readStoredCommonLangs() {
+  try {
+    const raw = localStorage.getItem('ddf_common_langs');
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((code) => typeof code === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function searchingLines(nativeCode) {
   const native = nativeCode ? langByCode(nativeCode)?.en : null;
   return [
     'Looking for a different mother tongue…',
@@ -22,6 +32,7 @@ function searchingLines() {
       ? `Finding someone who speaks a language other than ${native}…`
       : 'Matching different native languages across the hall…',
     'Checking for a shared language you both know…',
+    'When you both know English, card labels stay in English…',
     'Matchmaking continues automatically while you wait…',
     'Warming up the scoreboard…',
     'Listening for new players…',
@@ -29,7 +40,9 @@ function searchingLines() {
 }
 
 export default function Queued({ state }) {
-  const lines = useMemo(searchingLines, []);
+  const nativeCode = localStorage.getItem('ddf_native_lang');
+  const commonLangs = useMemo(() => readStoredCommonLangs(), []);
+  const lines = useMemo(() => searchingLines(nativeCode), [nativeCode]);
   const [lineIdx, setLineIdx] = useState(0);
   const [recruiting, setRecruiting] = useState(false);
 
@@ -67,6 +80,23 @@ export default function Queued({ state }) {
               <JoinQr size={168} />
             </div>
           </>
+        )}
+
+        {(nativeCode || commonLangs.length > 0) && (
+          <div className="lang-picks" aria-label="Your language selections">
+            {nativeCode && (
+              <div className="lang-pick">
+                <span className="lang-pick-role">Mother tongue</span>
+                <span className="lang-pick-value">{formatLanguageChip(nativeCode)}</span>
+              </div>
+            )}
+            {commonLangs.map((code) => (
+              <div className="lang-pick" key={code}>
+                <span className="lang-pick-role">Also speak</span>
+                <span className="lang-pick-value">{formatLanguageChip(code)}</span>
+              </div>
+            ))}
+          </div>
         )}
       </section>
 
