@@ -67,6 +67,10 @@ export const adminApi = {
     method: 'POST',
     json: payload,
   }),
+  generateDeckFromPrompt: (payload) => adminRequest('/api/admin/decks/from-prompt', {
+    method: 'POST',
+    json: payload,
+  }),
   activateDeck: (deckId) => adminRequest(`/api/admin/decks/${deckId}/activate`, {
     method: 'POST',
     json: {},

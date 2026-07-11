@@ -91,8 +91,14 @@ fields use SDK-compatible shapes).
 
 Generates culturally grounded picture cards with Nano Banana 2 Lite, verifies
 image-label consistency with Gemini, chooses decoys, and publishes complete
-decks atomically. Generation speed, cost, and rejection rate are first-class
-demo metrics.
+decks. The CLI and advanced JSON admin path still publish **atomically**. The
+primary admin prompt-to-deck path publishes **progressively**: each verified
+card is persisted while status stays `generating`, then decoys are backfilled
+and status becomes `ready`. Generation speed, cost, rejection rate, and
+`progress_stage` / `cards_ready` / `cards_target` are first-class demo metrics.
+
+Region tags include all 28 Indian states (lowercase hyphenated) plus legacy
+aliases (`bengal`, `bangalore`, `north`, `northeast`, `tamil`, …).
 
 Card images are prompted as whimsical, visibly absurd scenes in authentic
 Indian regional settings (Assam / Northeast emphasis in the curated pool and
@@ -114,11 +120,22 @@ extension mismatch is treated as a publisher bug, not a model failure.
 ### Operator deck control
 
 A demo-safe administration boundary lets an operator replace the generation
-concept set without editing code. Each submitted concept has a stable ID,
-English label, locale, and cultural hint. The protected admin API immediately
-creates a `generating` deck and runs Gemini image generation in a background
-task. Successful generation stops at `ready`, where operators can inspect
-concepts, labels, verification state, images, and generation metrics.
+concept set without editing code. The **primary** path is prompt-to-deck:
+the operator enters a one-line theme and an Indian state (or an example
+prompt). `POST /api/admin/decks/from-prompt` immediately creates a
+`generating` deck and returns 202. Background work invents concepts with
+Gemini Flash (never returned to the browser while generating), then Nano
+Banana 2 Lite generates images. Progressive publish persists each verified
+card row as soon as it is ready, updates `generation_metrics` with
+`progress_stage` / `cards_ready` / `cards_target` for the review UI, runs
+batch decoy selection, backfills decoys, and only then sets status to
+`ready`. On failure the deck is marked `failed` and partial cards are kept
+for diagnostics. Activation of `generating` / `failed` remains rejected.
+
+The advanced fallback still accepts explicit concept JSON via
+`POST /api/admin/decks` (`AdminDeckGenerateRequest`) and publishes
+atomically to `ready`. Each submitted concept has a stable ID, English
+label, locale, and cultural hint.
 
 Activation is explicit and serialized. Activating a ready deck atomically
 demotes the previous live deck to ready and promotes the selected deck to
@@ -133,8 +150,9 @@ The React build also serves a separate `/admin` root (pathname fork beside
 `/tv`). After the operator pastes the shared admin key into sessionStorage,
 the surface provides:
 
-1. **Decks** — generate from pasted/uploaded concepts JSON, list, review
-   cards, and activate.
+1. **Decks** — primary prompt + Indian-state form with example themes;
+   progressive review grid (skeletons + images as cards appear); explicit
+   activate. JSON concept upload remains under a collapsed Advanced section.
 2. **Metrics** — poll public `GET /api/metrics`, deck `generation_metrics`,
    and protected aggregate eligibility funnel counts.
 3. **Traces** — protected reads of redacted `api_calls`, worker heartbeats,

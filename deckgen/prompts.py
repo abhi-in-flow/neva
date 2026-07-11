@@ -168,3 +168,56 @@ TRANSLATE_RESPONSE_SCHEMA: dict[str, object] = {
         "required": ["id", "labels"],
     },
 }
+
+# 1.5 Gemini Flash — invent operator concepts from a one-line theme
+# Placeholders: card_count, region_tag, region_context, theme
+CONCEPT_FROM_PROMPT_PROMPT = """\
+You invent picture-charades card concepts for a mobile game played in India.
+Players must guess each card from a single whimsical photograph — no text on
+the image, no audio yet.
+
+Region tag: {region_tag}
+Regional setting: {region_context}
+Operator theme (one line): {theme}
+
+Invent exactly {card_count} distinct concepts. Each concept must be:
+- Playful and culturally grounded in {region_context}
+- Visually unambiguous at phone size (guessable in about 2 seconds)
+- A scene or short action that can be photographed without any text, logos,
+  brand marks, sharp identifiable faces, stereotypes, or humiliation
+- Distinct from the others (no near-duplicates or synonym pairs)
+
+For each concept return:
+- concept_id: lowercase slug, letters/digits/hyphen/underscore, starting with
+  a letter or digit (example: monsoon_tea_stall)
+- label_en: short English guess label (1-5 words)
+- locale: short cultural setting phrase for this card (may refine the region)
+- cultural_hint: one vivid sentence describing the absurd/funny scene to draw
+
+Respond ONLY with JSON matching the schema.\
+"""
+
+CONCEPT_FROM_PROMPT_RESPONSE_SCHEMA: dict[str, object] = {
+    "type": "object",
+    "properties": {
+        "concepts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "concept_id": {"type": "string"},
+                    "label_en": {"type": "string"},
+                    "locale": {"type": "string"},
+                    "cultural_hint": {"type": "string"},
+                },
+                "required": [
+                    "concept_id",
+                    "label_en",
+                    "locale",
+                    "cultural_hint",
+                ],
+            },
+        },
+    },
+    "required": ["concepts"],
+}

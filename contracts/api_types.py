@@ -56,6 +56,25 @@ class AdminDeckGenerateRequest(BaseModel):
         return self
 
 
+class AdminDeckPromptGenerateRequest(BaseModel):
+    """Primary operator path: one-line theme → Gemini concepts → NB2 images."""
+
+    region_tag: str = Field(min_length=1, max_length=80, pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    prompt: str = Field(min_length=1, max_length=240)
+    card_count: int = Field(default=8, ge=6, le=20)
+
+    @model_validator(mode="after")
+    def require_single_line_prompt(self) -> "AdminDeckPromptGenerateRequest":
+        """Reject multi-line theme text; operators enter one demo-friendly line."""
+        if "\n" in self.prompt or "\r" in self.prompt:
+            raise ValueError("prompt must be a single line")
+        stripped = self.prompt.strip()
+        if not stripped:
+            raise ValueError("prompt must not be blank")
+        self.prompt = stripped
+        return self
+
+
 class AdminDeckOperationResponse(BaseModel):
     deck_id: UUID
     status: DeckStatus
@@ -66,7 +85,9 @@ class AdminDeckSummary(BaseModel):
     region_tag: str
     status: DeckStatus
     card_count: int = 0
-    generation_metrics: dict[str, int | float] | None = None
+    # Demo decks may include string mode markers (e.g. generation_mode) alongside
+    # numeric throughput/cost counters from live Gemini generation.
+    generation_metrics: dict[str, int | float | str | bool] | None = None
     failure_reason: str | None = None
     activated_at: datetime | None = None
     created_at: datetime

@@ -25,9 +25,11 @@ IMAGE_MODEL = NANO_BANANA_LITE
 VERIFY_MODEL = GEMINI_FLASH
 TRANSLATE_MODEL = GEMINI_FLASH
 DECOY_MODEL = GEMINI_FLASH
+CONCEPT_MODEL = GEMINI_FLASH
 
 # --- Generation / verification ---
 MAX_IMAGE_RETRIES = 2  # retries after the first attempt (≤ 3 total attempts)
+MAX_CONCEPT_GEN_RETRIES = 2  # retries after the first invent attempt
 VERIFY_THINKING_LEVEL = "low"
 IMAGE_MIME_TYPE = "image/png"
 # Native Gemini image option; translated to ImageConfig by the shared client.
@@ -43,6 +45,17 @@ TARGET_LANGUAGES: tuple[str, ...] = ("en", "hi", "as", "bn")
 OPERATOR_CONCEPT_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
 OPERATOR_CONCEPT_MAX_TEXT_LENGTH = 500
 
+# --- Admin prompt-to-deck (primary operator path) ---
+PROMPT_DEFAULT_CARD_COUNT = 8
+PROMPT_MIN_CARD_COUNT = 6
+PROMPT_MAX_CARD_COUNT = 20
+PROMPT_MAX_CHARS = 240
+PROGRESS_STAGE_INVENTING = "inventing_concepts"
+PROGRESS_STAGE_IMAGES = "generating_images"
+PROGRESS_STAGE_DECOYS = "finalizing_decoys"
+PROGRESS_STAGE_READY = "ready"
+PROGRESS_STAGE_FAILED = "failed"
+
 # --- Pricing (USD) used for Track 3 demo metrics ---
 # NB2 Lite is ~$0.0336 per image (arch doc correction vs event PDF typo).
 COST_PER_IMAGE_USD = 0.0336
@@ -50,14 +63,44 @@ COST_PER_IMAGE_USD = 0.0336
 COST_PER_FLASH_CALL_USD = 0.0004
 
 # --- Region tag → culturally grounded prompt context ---
+# Canonical keys are the 28 Indian states (lowercase hyphenated). Legacy
+# aliases (bengal, bangalore, north, northeast, tamil, …) remain for CLI and
+# older operator JSON payloads.
 REGION_CONTEXTS: dict[str, str] = {
-    "assam": "Assamese village",
+    # 28 Indian states
+    "andhra-pradesh": "Andhra Pradesh coastal town and temple-town streets",
+    "arunachal-pradesh": "Arunachal Pradesh mountain village and hillside paths",
+    "assam": "Assamese village and Brahmaputra riverside",
+    "bihar": "Bihar village courtyard and riverside ghat",
+    "chhattisgarh": "Chhattisgarh forest-edge village and tribal market",
+    "goa": "Goan coastal village and spice-market lanes",
+    "gujarat": "Gujarati town market and courtyard",
+    "haryana": "Haryana village farmyard and dusty market lane",
+    "himachal-pradesh": "Himachal Pradesh mountain village and apple-orchard paths",
+    "jharkhand": "Jharkhand forest village and tribal market",
+    "karnataka": "Karnataka town street and temple-town lanes",
+    "kerala": "Kerala coastal town and backwater village",
+    "madhya-pradesh": "Madhya Pradesh town market and fort-town streets",
+    "maharashtra": "Maharashtra village courtyard and busy town lane",
+    "manipur": "Manipur valley town and riverside market",
+    "meghalaya": "Meghalaya hill village and misty market path",
+    "mizoram": "Mizoram hill town and bamboo-lined village street",
+    "nagaland": "Nagaland hill village and market courtyard",
+    "odisha": "Odisha coastal town and temple-town street",
+    "punjab": "Punjabi village courtyard and mustard-field edge",
+    "rajasthan": "Rajasthan desert-town market and courtyard",
+    "sikkim": "Sikkim mountain village and monastery-town path",
+    "tamil-nadu": "Tamil Nadu temple-town street and coastal village",
+    "telangana": "Telangana town market and Deccan village lane",
+    "tripura": "Tripura hill-town market and bamboo courtyard",
+    "uttar-pradesh": "Uttar Pradesh town ghat and village courtyard",
+    "uttarakhand": "Uttarakhand mountain village and hill-town path",
+    "west-bengal": "West Bengal town market and riverside lane",
+    # Legacy aliases retained for compatibility
     "bengal": "Bengali town market",
     "bangalore": "Bengaluru urban street",
     "north": "North Indian market",
     "northeast": "rural Northeast Indian riverside",
-    "kerala": "Kerala coastal town",
-    "punjab": "Punjabi village courtyard",
     "tamil": "Tamil Nadu temple-town street",
 }
 

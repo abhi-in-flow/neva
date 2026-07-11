@@ -39,6 +39,9 @@ export const TV_SHOW_ROWS = 8;
 /** Venue TV: rotate ticker copy every N milliseconds. */
 export const TV_TICKER_ROTATE_MS = 5000;
 
+/** Admin Decks: poll generating deck detail for progressive card reveal. */
+export const ADMIN_DECK_POLL_MS = 1500;
+
 /** Canonical phase names mirrored from contracts/api_types.py Phase enum. */
 export const PHASES = Object.freeze({
   ONBOARDING: 'onboarding',

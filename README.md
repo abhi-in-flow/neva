@@ -1,6 +1,17 @@
-# Dialect Data Factory
+# Dialect Data Factory (Neva)
 
 Turn a multiplayer charades game into a zero-touch, validated dialect speech-data pipeline.
+
+**Neva** turns a charades game into a zero-touch dialect speech pipeline: strangers
+with different mother tongues describe Nano Banana 2 Lite–generated regional
+picture decks, partners validate meaning in a shared language, and every
+accepted round is cleaned through automated quality, contamination, and
+de-duplication gates before it enters an append-only training corpus for
+fine-tuning—proving that high-throughput creative generation isn’t a prompt box,
+it’s the engine that keeps play fresh while India-scale language data collects
+itself.
+
+![How we use Gemini and Gemma — gameplay to cleaned corpus to on-device dialect intelligence](docs-assets/gemini-gemma-use.png)
 
 ## Hackathon tracks
 
@@ -41,6 +52,8 @@ Living design: [`Design.md`](Design.md). Agent rules: [`AGENTS.md`](AGENTS.md).
 - Local disk for audio, decks, and append-only corpus shards
 - Independent game, deck-generation, cleaning-worker, and fine-tuning components
 - Mobile player UI at `/`, venue TV at `/tv`, operator admin at `/admin`
+
+![Dialect Data Factory high-level architecture — players, host stack, Gemini, and Gemma](docs-assets/architecture.png)
 
 The frozen integration contracts live in [`contracts/`](contracts/).
 
@@ -119,16 +132,17 @@ See [`phase-plan/wave-3-launch-demo/ADMIN-DEMO-RUNBOOK.md`](phase-plan/wave-3-la
 ## Repository layout
 
 ```text
-app/        FastAPI app, game core, Gemini client, admin APIs
-contracts/  Frozen API, database, data-record, and directory contracts
-deckgen/    Nano Banana deck-generation CLI
-worker/     Async cleaning-gauntlet process
-tune/       Isolated Gemma LoRA harness
-frontend/   React/Vite player + TV + /admin surfaces
-scripts/    Schema, deck admin, pipeline view, bootstrap helpers
-build-docs/ Briefs, architecture notes, demo concept JSON
-phase-plan/ Wave orchestration and runbooks
-data/       Runtime-only local audio, decks, and JSONL corpus shards
+app/          FastAPI app, game core, Gemini client, admin APIs
+contracts/    Frozen API, database, data-record, and directory contracts
+deckgen/      Nano Banana deck-generation CLI
+worker/       Async cleaning-gauntlet process
+tune/         Isolated Gemma LoRA harness
+frontend/     React/Vite player + TV + /admin surfaces
+scripts/      Schema, deck admin, pipeline view, bootstrap helpers
+build-docs/   Briefs, architecture notes, demo concept JSON
+docs-assets/  README diagrams and pitch visuals
+phase-plan/   Wave orchestration and runbooks
+data/         Runtime-only local audio, decks, and JSONL corpus shards
 ```
 
 ## Scope discipline
@@ -137,3 +151,8 @@ Do not add game behavior to the frontend; it renders the server-owned state
 contract. Do not change a contract without coordinating both backend and
 frontend owners. Keep Gemini model IDs in `app/models.py` and prompts in named
 modules (`deckgen/prompts.py`, `worker/prompts.py`).
+
+## License
+
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE)
+(AGPL-3.0).

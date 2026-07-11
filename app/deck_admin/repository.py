@@ -37,6 +37,11 @@ class DeckAdminRepository(Protocol):
     async def activate(self, deck_id: UUID) -> Mapping[str, Any] | None:
         """Atomically make a ready deck the sole live deck."""
 
+    async def update_generation_input(
+        self, deck_id: UUID, generation_input: Mapping[str, Any]
+    ) -> None:
+        """Replace generation_input on a generating deck."""
+
 
 class PostgresDeckAdminRepository:
     """Asyncpg implementation of the deck administration repository."""
@@ -83,6 +88,35 @@ class PostgresDeckAdminRepository:
         )
         logger.info("create_generating completed deck_id=%s", row["id"])
         return row
+
+    async def update_generation_input(
+        self, deck_id: UUID, generation_input: Mapping[str, Any]
+    ) -> None:
+        """Replace generation_input for a still-generating deck.
+
+        Args:
+            deck_id: Target generating deck.
+            generation_input: Credential-free payload, often including invented
+                concepts after the prompt invent step.
+
+        Side effects:
+            Updates ``decks.generation_input`` only while status is generating.
+        """
+        logger.info(
+            "update_generation_input called deck_id=%s concept_count=%s",
+            deck_id,
+            len(generation_input.get("concepts", [])),
+        )
+        await self._pool.execute(
+            """
+            UPDATE decks
+            SET generation_input = $2::jsonb
+            WHERE id = $1 AND status = 'generating'
+            """,
+            deck_id,
+            json.dumps(dict(generation_input), ensure_ascii=False),
+        )
+        logger.info("update_generation_input completed deck_id=%s", deck_id)
 
     async def list_decks(self) -> list[Mapping[str, Any]]:
         """Return newest decks with card counts, capped for demo safety.

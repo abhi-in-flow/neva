@@ -147,6 +147,7 @@ class FakeDeckGenAIClient:
         verify_results: list[dict[str, Any]] | None = None,
         translate_result: list[dict[str, Any]] | None = None,
         decoy_result: list[dict[str, Any]] | None = None,
+        concept_result: dict[str, Any] | None = None,
     ) -> None:
         """Configure optional scripted responses for pipeline tests.
 
@@ -154,17 +155,20 @@ class FakeDeckGenAIClient:
             verify_results: Ordered verification JSON dicts (popped per call).
             translate_result: Batched translation JSON array.
             decoy_result: Batched decoy-selection JSON array.
+            concept_result: Scripted invent_concepts object payload.
         """
         logger.info(
             "FakeDeckGenAIClient.__init__ called verify_script_len=%s "
-            "has_translate=%s has_decoy=%s",
+            "has_translate=%s has_decoy=%s has_concepts=%s",
             len(verify_results or []),
             translate_result is not None,
             decoy_result is not None,
+            concept_result is not None,
         )
         self.verify_results = list(verify_results or [])
         self.translate_result = translate_result
         self.decoy_result = decoy_result
+        self.concept_result = concept_result
         self.calls: list[dict[str, Any]] = []
         self._verify_index = 0
 
@@ -219,7 +223,7 @@ class FakeDeckGenAIClient:
             model: Model id.
             prompt: Prompt text.
             operation: One of ``verify_image``, ``translate_labels``,
-                ``select_decoys``, or a test-specific label.
+                ``select_decoys``, ``invent_concepts``, or a test-specific label.
             response_schema: Expected schema (logged as keys only).
             thinking_level: Optional thinking setting.
             image_bytes: Optional image input (length logged, bytes stripped).
@@ -277,7 +281,43 @@ class FakeDeckGenAIClient:
             if self.decoy_result is not None:
                 return self.decoy_result
             return _fake_decoys_from_prompt(prompt)
+        if operation == "invent_concepts":
+            if self.concept_result is not None:
+                return self.concept_result
+            return _fake_concepts_from_prompt(prompt)
         raise ValueError(f"FakeDeckGenAIClient: unknown operation {operation!r}")
+
+
+def _fake_concepts_from_prompt(prompt: str) -> dict[str, Any]:
+    """Build a deterministic invent_concepts payload from the theme prompt.
+
+    Args:
+        prompt: Formatted invent prompt containing ``Invent exactly N``.
+
+    Returns:
+        Object shaped like ``CONCEPT_FROM_PROMPT_RESPONSE_SCHEMA``.
+    """
+    logger.info("_fake_concepts_from_prompt called prompt_chars=%s", len(prompt))
+    count = 8
+    marker = "Invent exactly "
+    if marker in prompt:
+        try:
+            count = int(prompt.split(marker, 1)[1].split(" ", 1)[0])
+        except (IndexError, ValueError):
+            count = 8
+    concepts = [
+        {
+            "concept_id": f"theme_concept_{index}",
+            "label_en": f"Theme concept {index}",
+            "locale": "Assamese village courtyard",
+            "cultural_hint": (
+                f"A playful culturally grounded scene number {index} with one "
+                "clear visual gag and no text anywhere"
+            ),
+        }
+        for index in range(count)
+    ]
+    return {"concepts": concepts}
 
 
 def _fake_translate_from_prompt(prompt: str) -> list[dict[str, Any]]:

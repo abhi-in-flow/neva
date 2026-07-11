@@ -14,6 +14,13 @@ import {
   getAdminKey,
   setAdminKey,
 } from '../lib/adminApi.js';
+import { ADMIN_DECK_POLL_MS } from '../lib/constants.js';
+import {
+  DEFAULT_CARD_COUNT,
+  DEFAULT_REGION_TAG,
+  EXAMPLE_PROMPTS,
+  INDIAN_STATES,
+} from './deckPresets.js';
 import '../styles/admin.css';
 
 const TABS = [
@@ -36,6 +43,54 @@ function formatPct(value) {
 function formatMicroUsd(value) {
   if (typeof value !== 'number') return '—';
   return `$${(value / 1_000_000).toFixed(5)}`;
+}
+
+/**
+ * Derive a human-readable generation stage from persisted metrics + status.
+ * Only claims stages that generation_metrics (or terminal status) support.
+ */
+function generationStageLabel(detail) {
+  if (!detail) return '';
+  if (detail.status === 'ready') return 'Ready for review';
+  if (detail.status === 'live') return 'Live';
+  if (detail.status === 'failed') return 'Generation failed';
+  const metrics = detail.generation_metrics || {};
+  const stage = metrics.progress_stage;
+  const ready = typeof metrics.cards_ready === 'number' ? metrics.cards_ready : detail.card_count;
+  const target = typeof metrics.cards_target === 'number' ? metrics.cards_target : null;
+  if (stage === 'inventing_concepts') {
+    return 'Inventing concepts with Gemini';
+  }
+  if (stage === 'generating_images') {
+    if (target != null) {
+      return `Generating images with Nano Banana 2 Lite — ${ready} / ${target}`;
+    }
+    return 'Generating images with Nano Banana 2 Lite';
+  }
+  if (stage === 'finalizing_decoys') {
+    return 'Finalizing decoys';
+  }
+  if (detail.status === 'generating') {
+    return 'Generating…';
+  }
+  return detail.status;
+}
+
+function progressFraction(detail) {
+  const metrics = detail?.generation_metrics || {};
+  const stage = metrics.progress_stage;
+  const ready = typeof metrics.cards_ready === 'number' ? metrics.cards_ready : 0;
+  const target = typeof metrics.cards_target === 'number' ? metrics.cards_target : 0;
+  if (detail?.status === 'ready' || detail?.status === 'live') return 1;
+  if (stage === 'inventing_concepts') return 0.08;
+  if (stage === 'finalizing_decoys') return target > 0 ? 0.92 : 0.85;
+  if (stage === 'generating_images' && target > 0) {
+    return Math.min(0.9, 0.1 + (0.8 * ready) / target);
+  }
+  if (detail?.status === 'generating' && target > 0 && ready > 0) {
+    return Math.min(0.9, ready / target);
+  }
+  return detail?.status === 'generating' ? 0.05 : 0;
 }
 
 function AuthGate({ onReady }) {
@@ -87,7 +142,11 @@ function DecksPanel() {
   const [decks, setDecks] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [prompt, setPrompt] = useState('');
+  const [regionTag, setRegionTag] = useState(DEFAULT_REGION_TAG);
+  const [cardCount, setCardCount] = useState(DEFAULT_CARD_COUNT);
   const [jsonText, setJsonText] = useState('');
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -124,18 +183,46 @@ function DecksPanel() {
       } catch {
         /* keep polling quietly */
       }
-    }, 3000);
+    }, ADMIN_DECK_POLL_MS);
     return () => clearInterval(timer);
   }, [detail, loadDetail, refresh]);
 
-  const onGenerate = async () => {
+  const onGenerateFromPrompt = async () => {
+    setError('');
+    setMessage('');
+    if (!prompt.trim()) {
+      setError('Enter a one-line theme prompt.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await adminApi.generateDeckFromPrompt({
+        region_tag: regionTag,
+        prompt: prompt.trim(),
+        card_count: Number(cardCount) || DEFAULT_CARD_COUNT,
+      });
+      setMessage(`Generation started: ${result.deck_id}`);
+      await refresh();
+      await loadDetail(result.deck_id);
+    } catch (err) {
+      if (err instanceof AdminApiError) {
+        setError(typeof err.detail === 'string' ? err.detail : err.message);
+      } else {
+        setError(err.message || 'Generate failed');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onGenerateJson = async () => {
     setError('');
     setMessage('');
     setBusy(true);
     try {
       const payload = JSON.parse(jsonText);
       const result = await adminApi.generateDeck(payload);
-      setMessage(`Generation started: ${result.deck_id}`);
+      setMessage(`JSON generation started: ${result.deck_id}`);
       await refresh();
       await loadDetail(result.deck_id);
     } catch (err) {
@@ -173,33 +260,126 @@ function DecksPanel() {
     setJsonText(await file.text());
   };
 
+  const skeletonCount = useMemo(() => {
+    if (!detail || detail.status !== 'generating') return 0;
+    const metrics = detail.generation_metrics || {};
+    const target = typeof metrics.cards_target === 'number'
+      ? metrics.cards_target
+      : DEFAULT_CARD_COUNT;
+    const have = (detail.cards || []).length;
+    return Math.max(0, target - have);
+  }, [detail]);
+
+  const fraction = progressFraction(detail);
+
   return (
     <>
       <section className="admin-panel">
         <h2>Generate deck</h2>
         <p className="admin-muted">
-          Paste or upload JSON matching <code>AdminDeckGenerateRequest</code>
-          (region_tag + 6–60 concepts).
+          Enter a one-line theme and pick an Indian state. Gemini invents the
+          concepts; Nano Banana 2 Lite draws the cards. Activation stays explicit.
         </p>
         {error ? <div className="admin-error">{error}</div> : null}
         {message ? <p className="admin-muted">{message}</p> : null}
-        <div className="admin-row">
-          <input type="file" accept="application/json,.json" onChange={onFile} />
-        </div>
-        <textarea
-          className="admin-textarea"
-          value={jsonText}
-          onChange={(e) => setJsonText(e.target.value)}
-          placeholder='{"region_tag":"assam","concepts":[...]}'
+        <label className="admin-label" htmlFor="deck-prompt">Theme prompt</label>
+        <input
+          id="deck-prompt"
+          className="admin-input"
+          type="text"
+          maxLength={240}
+          placeholder="e.g. Monsoon market chaos with animals sharing umbrellas"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
         />
+        <div className="admin-form-grid">
+          <div>
+            <label className="admin-label" htmlFor="deck-state">Indian state</label>
+            <select
+              id="deck-state"
+              className="admin-select"
+              value={regionTag}
+              onChange={(e) => setRegionTag(e.target.value)}
+            >
+              {INDIAN_STATES.map((state) => (
+                <option key={state.region_tag} value={state.region_tag}>
+                  {state.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="admin-label" htmlFor="deck-count">Cards (6–20)</label>
+            <input
+              id="deck-count"
+              className="admin-input"
+              type="number"
+              min={6}
+              max={20}
+              value={cardCount}
+              onChange={(e) => setCardCount(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="admin-examples" role="group" aria-label="Example prompts">
+          {EXAMPLE_PROMPTS.map((example) => (
+            <button
+              key={example}
+              type="button"
+              className="admin-example"
+              onClick={() => setPrompt(example)}
+            >
+              {example}
+            </button>
+          ))}
+        </div>
         <div className="admin-row">
-          <button className="admin-btn" type="button" disabled={busy} onClick={onGenerate}>
+          <button
+            className="admin-btn"
+            type="button"
+            disabled={busy}
+            onClick={onGenerateFromPrompt}
+          >
             Generate
           </button>
           <button className="admin-btn secondary" type="button" disabled={busy} onClick={refresh}>
             Refresh list
           </button>
         </div>
+
+        <details
+          className="admin-advanced"
+          open={advancedOpen}
+          onToggle={(e) => setAdvancedOpen(e.target.open)}
+        >
+          <summary>Advanced · paste concepts JSON</summary>
+          <p className="admin-muted">
+            Fallback for operators who already have
+            {' '}
+            <code>AdminDeckGenerateRequest</code>
+            {' '}
+            JSON.
+          </p>
+          <div className="admin-row">
+            <input type="file" accept="application/json,.json" onChange={onFile} />
+          </div>
+          <textarea
+            className="admin-textarea"
+            value={jsonText}
+            onChange={(e) => setJsonText(e.target.value)}
+            placeholder='{"region_tag":"assam","concepts":[...]}'
+          />
+          <div className="admin-row">
+            <button
+              className="admin-btn secondary"
+              type="button"
+              disabled={busy}
+              onClick={onGenerateJson}
+            >
+              Generate from JSON
+            </button>
+          </div>
+        </details>
       </section>
 
       <section className="admin-panel">
@@ -262,10 +442,27 @@ function DecksPanel() {
               ? ' · polling…'
               : ''}
           </p>
+          {detail.status === 'generating' || detail.generation_metrics?.progress_stage ? (
+            <div className="admin-progress">
+              <div className="admin-progress-label">{generationStageLabel(detail)}</div>
+              <div
+                className="admin-progress-bar"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(fraction * 100)}
+              >
+                <div
+                  className="admin-progress-fill"
+                  style={{ width: `${Math.round(fraction * 100)}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
           {detail.failure_reason ? (
             <div className="admin-error">{detail.failure_reason}</div>
           ) : null}
-          {detail.generation_metrics ? (
+          {detail.status !== 'generating' && detail.generation_metrics ? (
             <pre className="admin-pre">{JSON.stringify(detail.generation_metrics, null, 2)}</pre>
           ) : null}
           <h3 className="admin-muted">Cards</h3>
@@ -279,7 +476,25 @@ function DecksPanel() {
                 </figcaption>
               </figure>
             ))}
+            {Array.from({ length: skeletonCount }, (_, index) => (
+              <figure className="admin-card admin-card-skeleton" key={`skel-${index}`}>
+                <div className="admin-skeleton-block" />
+                <figcaption>Waiting…</figcaption>
+              </figure>
+            ))}
           </div>
+          {(detail.status === 'ready' || detail.status === 'live') && (
+            <div className="admin-row">
+              <button
+                className="admin-btn"
+                type="button"
+                disabled={busy || detail.status === 'live'}
+                onClick={() => onActivate(detail.deck_id)}
+              >
+                {detail.status === 'live' ? 'Live' : 'Activate deck'}
+              </button>
+            </div>
+          )}
         </section>
       ) : null}
     </>

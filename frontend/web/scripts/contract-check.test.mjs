@@ -218,3 +218,33 @@ test('pair request retry loop cancels timer and never retries 401', async () => 
   assert.equal(unauthorizedTimerCount, 0);
   unauthorizedLoop.stop();
 });
+
+test('admin prompt-to-deck presets cover 28 states and example themes', () => {
+  const source = readFileSync(join(root, 'src', 'admin', 'deckPresets.js'), 'utf8');
+  assert.match(source, /export const INDIAN_STATES/);
+  assert.match(source, /west-bengal/);
+  assert.match(source, /andhra-pradesh/);
+  assert.match(source, /EXAMPLE_PROMPTS/);
+  assert.match(source, /Monsoon market/);
+  assert.match(source, /Festival night/);
+  assert.match(source, /Rural transport/);
+  assert.match(source, /Coastal life/);
+  assert.match(source, /Mountain village/);
+  assert.match(source, /urban street/i);
+});
+
+test('admin API client exposes generateDeckFromPrompt', () => {
+  const source = readFileSync(join(root, 'src', 'lib', 'adminApi.js'), 'utf8');
+  assert.match(source, /generateDeckFromPrompt/);
+  assert.match(source, /\/api\/admin\/decks\/from-prompt/);
+});
+
+test('admin Decks panel uses prompt form and centralized poll interval', () => {
+  const source = readFileSync(join(root, 'src', 'admin', 'AdminApp.jsx'), 'utf8');
+  assert.match(source, /generateDeckFromPrompt/);
+  assert.match(source, /ADMIN_DECK_POLL_MS/);
+  assert.match(source, /Inventing concepts with Gemini/);
+  assert.match(source, /Nano Banana 2 Lite/);
+  assert.match(source, /admin-card-skeleton/);
+  assert.match(source, /Advanced · paste concepts JSON/);
+});

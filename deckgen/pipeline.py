@@ -21,11 +21,16 @@ from deckgen.concepts import Concept, select_concepts
 from deckgen.config import (
     DECK_FINAL_STATUSES,
     DECK_STATUS_LIVE,
+    DECK_STATUS_READY,
     DEFAULT_CARD_COUNT,
     IMAGE_MIME_TYPE,
     IMAGE_MODEL,
     MAX_IMAGE_RETRIES,
     N_DECOYS,
+    PROGRESS_STAGE_DECOYS,
+    PROGRESS_STAGE_IMAGES,
+    PROGRESS_STAGE_INVENTING,
+    PROGRESS_STAGE_READY,
     STRENGTHENED_REGION_SUFFIX,
     TARGET_LANGUAGES,
     TRANSLATE_MODEL,
@@ -472,6 +477,37 @@ def map_decoy_concepts_to_card_uuids(
     return out
 
 
+def _progress_metrics(
+    metrics: DeckMetrics,
+    *,
+    stage: str,
+    cards_target: int,
+    cards_ready: int,
+) -> dict[str, Any]:
+    """Merge throughput counters with progressive UI stage fields.
+
+    Args:
+        metrics: Live metrics accumulator (may still be running).
+        stage: Persisted ``progress_stage`` string for the admin UI.
+        cards_target: Planned card count for this deck.
+        cards_ready: Cards already persisted while generating.
+
+    Returns:
+        JSON-compatible metrics dict including scalar progress fields.
+    """
+    logger.info(
+        "_progress_metrics called stage=%s cards_target=%s cards_ready=%s",
+        stage,
+        cards_target,
+        cards_ready,
+    )
+    payload = metrics.as_dict()
+    payload["progress_stage"] = stage
+    payload["cards_target"] = cards_target
+    payload["cards_ready"] = cards_ready
+    return payload
+
+
 async def build_deck(
     *,
     region: str,
@@ -483,6 +519,9 @@ async def build_deck(
     seed: int | None = None,
     deck_id: uuid.UUID | None = None,
     final_status: str = DECK_STATUS_LIVE,
+    progressive: bool = False,
+    generation_source: str | None = None,
+    prompt_theme: str | None = None,
 ) -> DeckBuildResult:
     """Run the full deck pipeline and publish (or dry-run publish).
 
@@ -498,17 +537,25 @@ async def build_deck(
         seed: Optional concept-selection seed.
         deck_id: Optional pre-created ``generating`` deck UUID.
         final_status: Successful publication status, ``ready`` or ``live``.
+        progressive: When True, persist each verified card while the deck
+            stays ``generating``, then finalize decoys and status. Requires
+            ``deck_id``. Atomic ``publish`` remains the default for CLI/JSON.
+        generation_source: Optional ``generation_input.source`` override
+            (``prompt``, ``operator``, or ``curated``).
+        prompt_theme: Optional one-line theme stored with prompt-sourced decks.
 
     Returns:
         ``DeckBuildResult`` with metrics and publish outcome.
 
     Side effects:
         Live mode writes images under ``DATA_DIR`` and inserts Postgres rows.
+        Progressive mode may leave partial cards if generation fails.
         Dry-run has no external side effects.
     """
     logger.info(
         "build_deck called region=%s cards=%s explicit_concept_count=%s "
-        "dry_run=%s seed=%s deck_id=%s final_status=%s",
+        "dry_run=%s seed=%s deck_id=%s final_status=%s progressive=%s "
+        "generation_source=%s prompt_chars=%s",
         region,
         cards,
         len(concepts) if concepts is not None else None,
@@ -516,9 +563,14 @@ async def build_deck(
         seed,
         deck_id,
         final_status,
+        progressive,
+        generation_source,
+        len(prompt_theme) if prompt_theme else None,
     )
     if final_status not in DECK_FINAL_STATUSES:
         raise ValueError(f"final_status must be one of {DECK_FINAL_STATUSES}")
+    if progressive and deck_id is None:
+        raise ValueError("progressive mode requires an existing deck_id")
     region_key = region.strip().lower()
     region_context = resolve_region_context(region_key)
     metrics = DeckMetrics()
@@ -550,6 +602,26 @@ async def build_deck(
             if len(set(concept_ids)) != len(concept_ids):
                 raise ValueError("explicit concepts contain duplicate ids")
 
+        generation_input = build_generation_input(
+            region=region_key,
+            concepts=selected_concepts,
+            seed=seed,
+            operator_supplied=concepts is not None,
+            source=generation_source,
+            prompt=prompt_theme,
+        )
+        if progressive:
+            await pub.update_generation_state(
+                deck_id=deck_id,
+                generation_input=generation_input,
+                generation_metrics=_progress_metrics(
+                    metrics,
+                    stage=PROGRESS_STAGE_IMAGES,
+                    cards_target=resolved_card_count,
+                    cards_ready=0,
+                ),
+            )
+
         translated = await translate_labels_batch(genai, selected_concepts, metrics)
 
         built: list[BuiltCard] = []
@@ -558,13 +630,43 @@ async def build_deck(
             image_bytes = await generate_verified_image(
                 genai, concept, concept_region_context, metrics
             )
-            built.append(
-                BuiltCard(
-                    card_id=uuid.uuid4(),
-                    concept=concept,
-                    image_bytes=image_bytes,
-                    labels=translated[concept.id],
+            built_card = BuiltCard(
+                card_id=uuid.uuid4(),
+                concept=concept,
+                image_bytes=image_bytes,
+                labels=translated[concept.id],
+            )
+            built.append(built_card)
+            if progressive:
+                assert deck_id is not None
+                await pub.persist_card(
+                    deck_id=deck_id,
+                    card=CardRecord(
+                        card_id=built_card.card_id,
+                        concept_id=built_card.concept.id,
+                        image_bytes=built_card.image_bytes,
+                        label_common=built_card.labels,
+                        decoy_card_ids=[],
+                        verified=True,
+                    ),
+                    generation_metrics=_progress_metrics(
+                        metrics,
+                        stage=PROGRESS_STAGE_IMAGES,
+                        cards_target=resolved_card_count,
+                        cards_ready=len(built),
+                    ),
                 )
+
+        if progressive:
+            assert deck_id is not None
+            await pub.update_generation_state(
+                deck_id=deck_id,
+                generation_metrics=_progress_metrics(
+                    metrics,
+                    stage=PROGRESS_STAGE_DECOYS,
+                    cards_target=resolved_card_count,
+                    cards_ready=len(built),
+                ),
             )
 
         decoy_concepts = await select_decoys_batch(genai, built, metrics)
@@ -572,33 +674,41 @@ async def build_deck(
         for card in built:
             card.decoy_concept_ids = decoy_concepts[str(card.card_id)]
 
-        records = [
-            CardRecord(
-                card_id=card.card_id,
-                concept_id=card.concept.id,
-                image_bytes=card.image_bytes,
-                label_common=card.labels,
-                decoy_card_ids=decoy_uuids[str(card.card_id)],
-                verified=True,
-            )
-            for card in built
-        ]
         metrics.finish()
-        metrics_payload = metrics.as_dict()
-        generation_input = build_generation_input(
-            region=region_key,
-            concepts=selected_concepts,
-            seed=seed,
-            operator_supplied=concepts is not None,
+        metrics_payload = _progress_metrics(
+            metrics,
+            stage=PROGRESS_STAGE_READY,
+            cards_target=resolved_card_count,
+            cards_ready=len(built),
         )
-        publish_result = await pub.publish(
-            region_tag=region_key,
-            cards=records,
-            deck_id=deck_id,
-            final_status=final_status,
-            generation_input=generation_input,
-            generation_metrics=metrics_payload,
-        )
+        if progressive:
+            assert deck_id is not None
+            publish_result = await pub.finalize_progressive(
+                deck_id=deck_id,
+                decoys_by_card_id=decoy_uuids,
+                generation_metrics=metrics_payload,
+                final_status=final_status,
+            )
+        else:
+            records = [
+                CardRecord(
+                    card_id=card.card_id,
+                    concept_id=card.concept.id,
+                    image_bytes=card.image_bytes,
+                    label_common=card.labels,
+                    decoy_card_ids=decoy_uuids[str(card.card_id)],
+                    verified=True,
+                )
+                for card in built
+            ]
+            publish_result = await pub.publish(
+                region_tag=region_key,
+                cards=records,
+                deck_id=deck_id,
+                final_status=final_status,
+                generation_input=generation_input,
+                generation_metrics=metrics_payload,
+            )
     except Exception as exc:
         if metrics.finished_at is None:
             metrics.finish()
@@ -625,12 +735,120 @@ async def build_deck(
     )
 
 
+async def build_deck_from_prompt(
+    *,
+    region: str,
+    prompt: str,
+    card_count: int,
+    deck_id: uuid.UUID,
+    dry_run: bool = False,
+    client: DeckGenAIClient | None = None,
+    publisher: DeckPublisher | None = None,
+    final_status: str = DECK_STATUS_READY,
+) -> DeckBuildResult:
+    """Invent concepts from a theme, then progressively generate the deck.
+
+    Args:
+        region: Region tag (state slug or legacy alias).
+        prompt: One-line operator theme.
+        card_count: Exact number of concepts/cards to invent.
+        deck_id: Pre-created ``generating`` deck UUID.
+        dry_run: Use fake GenAI + in-memory publisher.
+        client: Optional injected client (tests).
+        publisher: Optional injected publisher (tests).
+        final_status: Successful publication status (admin uses ``ready``).
+
+    Returns:
+        ``DeckBuildResult`` after progressive publish finalize.
+
+    Side effects:
+        Persists invented concepts on the generating deck, then streams card
+        rows as images pass verification. On failure the deck is marked failed
+        and any partial cards remain for diagnostics.
+    """
+    from deckgen.concept_gen import invent_concepts_from_prompt
+
+    logger.info(
+        "build_deck_from_prompt called region=%s prompt_chars=%s card_count=%s "
+        "deck_id=%s dry_run=%s final_status=%s",
+        region,
+        len(prompt),
+        card_count,
+        deck_id,
+        dry_run,
+        final_status,
+    )
+    genai = client or build_client(dry_run=dry_run)
+    if publisher is not None:
+        pub = publisher
+    elif dry_run:
+        pub = InMemoryPublisher()
+    else:
+        settings = get_settings()
+        pub = PostgresPublisher(
+            database_url=settings.database_url,
+            data_dir=settings.data_dir,
+        )
+
+    invent_metrics = DeckMetrics()
+    try:
+        await pub.update_generation_state(
+            deck_id=deck_id,
+            generation_input={
+                "region": region.strip().lower(),
+                "prompt": prompt,
+                "card_count": card_count,
+                "source": "prompt",
+                "concepts": [],
+            },
+            generation_metrics=_progress_metrics(
+                invent_metrics,
+                stage=PROGRESS_STAGE_INVENTING,
+                cards_target=card_count,
+                cards_ready=0,
+            ),
+        )
+        concepts = await invent_concepts_from_prompt(
+            genai,
+            region_tag=region,
+            prompt=prompt,
+            card_count=card_count,
+        )
+    except Exception as exc:
+        try:
+            await pub.mark_failed(
+                deck_id=deck_id,
+                reason=f"generation failed: {type(exc).__name__}",
+            )
+        except Exception:
+            logger.exception(
+                "build_deck_from_prompt could not mark deck failed deck_id=%s",
+                deck_id,
+            )
+        raise
+
+    return await build_deck(
+        region=region,
+        concepts=concepts,
+        dry_run=dry_run,
+        client=genai,
+        publisher=pub,
+        deck_id=deck_id,
+        final_status=final_status,
+        progressive=True,
+        generation_source="prompt",
+        prompt_theme=prompt,
+    )
+
+
 def build_generation_input(
     *,
     region: str,
     concepts: list[Concept],
     seed: int | None,
     operator_supplied: bool,
+    source: str | None = None,
+    prompt: str | None = None,
 ) -> dict[str, Any]:
     """Create the safe, reproducible generation input stored with a deck.
 
@@ -639,22 +857,29 @@ def build_generation_input(
         concepts: Ordered concepts actually used by generation.
         seed: Optional curated selection seed.
         operator_supplied: Whether concepts came from an operator payload.
+        source: Optional explicit source label (``prompt`` / ``operator`` /
+            ``curated``). Defaults from ``operator_supplied`` when omitted.
+        prompt: Optional one-line theme for prompt-sourced decks.
 
     Returns:
         JSON-compatible input containing only known non-secret deck fields.
     """
+    resolved_source = source or ("operator" if operator_supplied else "curated")
     logger.info(
-        "build_generation_input called region=%s concept_count=%s operator_supplied=%s seed=%s",
+        "build_generation_input called region=%s concept_count=%s "
+        "operator_supplied=%s seed=%s source=%s prompt_chars=%s",
         region,
         len(concepts),
         operator_supplied,
         seed,
+        resolved_source,
+        len(prompt) if prompt else None,
     )
-    return {
+    payload: dict[str, Any] = {
         "region": region,
         "card_count": len(concepts),
         "seed": seed,
-        "source": "operator" if operator_supplied else "curated",
+        "source": resolved_source,
         "concepts": [
             {
                 "concept_id": concept.id,
@@ -665,6 +890,9 @@ def build_generation_input(
             for concept in concepts
         ],
     }
+    if prompt is not None:
+        payload["prompt"] = prompt
+    return payload
 
 
 def build_deck_sync(**kwargs: Any) -> DeckBuildResult:

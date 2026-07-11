@@ -69,6 +69,7 @@ def test_router_wires_all_admin_paths_and_post_accepts_async_work() -> None:
         for method in route.methods
     }
     assert routes[("/api/admin/decks", "POST")] == 202
+    assert routes[("/api/admin/decks/from-prompt", "POST")] == 202
     assert ("/api/admin/decks", "GET") in routes
     assert ("/api/admin/decks/{deck_id}", "GET") in routes
     assert ("/api/admin/decks/{deck_id}/activate", "POST") in routes
@@ -115,7 +116,41 @@ async def test_auth_accepts_matching_key_with_constant_time_primitive() -> None:
 
 
 @pytest.mark.asyncio
-async def test_generate_route_returns_202_shape_and_only_schedules_work() -> None:
+async def test_list_decks_accepts_string_generation_mode_metrics() -> None:
+    """Local-svg demo decks store string mode markers; listing must not 500."""
+    from app.deck_admin.service import DeckAdminService
+
+    deck_id = uuid4()
+    repository = SimpleNamespace(
+        list_decks=AsyncMock(
+            return_value=[
+                {
+                    "id": deck_id,
+                    "region_tag": "functional-demo",
+                    "status": "ready",
+                    "generation_metrics": {
+                        "cost_microusd": 0,
+                        "generation_mode": "local-svg",
+                    },
+                    "failure_reason": None,
+                    "activated_at": None,
+                    "created_at": datetime(2026, 7, 11, tzinfo=UTC),
+                    "card_count": 5,
+                }
+            ]
+        )
+    )
+    service = DeckAdminService(repository, SimpleNamespace(), data_dir=Path("data"))
+    response = await service.list_decks()
+    assert len(response.decks) == 1
+    assert response.decks[0].generation_metrics == {
+        "cost_microusd": 0,
+        "generation_mode": "local-svg",
+    }
+
+
+@pytest.mark.asyncio
+async def test_generate_deck_schedules_background_work() -> None:
     """Return generating response while leaving work in BackgroundTasks."""
     deck_id = uuid4()
     service = SimpleNamespace(

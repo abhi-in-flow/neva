@@ -11,4 +11,5 @@ frontend/dist/
 data/*
 !data/.gitkeep
 unsloth_compiled_cache/
+*:Zone.Identifier
 *.log

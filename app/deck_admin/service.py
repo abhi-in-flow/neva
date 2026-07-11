@@ -21,6 +21,7 @@ from contracts.api_types import (
     AdminDeckGenerateRequest,
     AdminDeckListResponse,
     AdminDeckOperationResponse,
+    AdminDeckPromptGenerateRequest,
     AdminDeckSummary,
     DeckStatus,
 )
@@ -70,6 +71,48 @@ def _json_mapping(value: Any) -> dict[str, Any]:
     return dict(value)
 
 
+def _generation_metrics_for_api(
+    value: Any,
+) -> dict[str, int | float | str | bool] | None:
+    """Coerce stored generation metrics into contract-safe scalar values.
+
+    Demo decks may mix numeric throughput counters with string mode markers
+    such as ``generation_mode``. Nested objects and unsupported types are
+    dropped so list/review never 500 on validation.
+
+    Args:
+        value: Raw ``decks.generation_metrics`` JSONB payload.
+
+    Returns:
+        Scalar-only metrics mapping, or ``None`` when empty/absent.
+    """
+    logger.info(
+        "_generation_metrics_for_api called value_present=%s value_type=%s",
+        value is not None,
+        type(value).__name__,
+    )
+    if value is None:
+        return None
+    raw = _json_mapping(value)
+    cleaned: dict[str, int | float | str | bool] = {}
+    for key, item in raw.items():
+        if isinstance(item, bool):
+            cleaned[str(key)] = item
+        elif isinstance(item, int) and not isinstance(item, bool):
+            cleaned[str(key)] = item
+        elif isinstance(item, float):
+            cleaned[str(key)] = item
+        elif isinstance(item, str):
+            cleaned[str(key)] = item
+        else:
+            logger.info(
+                "_generation_metrics_for_api dropped key=%s value_type=%s",
+                key,
+                type(item).__name__,
+            )
+    return cleaned or None
+
+
 def _summary(row: Mapping[str, Any]) -> AdminDeckSummary:
     """Map one repository row to the frozen summary contract.
 
@@ -80,13 +123,12 @@ def _summary(row: Mapping[str, Any]) -> AdminDeckSummary:
         Validated ``AdminDeckSummary``.
     """
     logger.info("_summary called deck_id=%s status=%s", row["id"], row["status"])
-    metrics = row.get("generation_metrics")
     return AdminDeckSummary(
         deck_id=row["id"],
         region_tag=row["region_tag"],
         status=DeckStatus(row["status"]),
         card_count=int(row.get("card_count", 0)),
-        generation_metrics=_json_mapping(metrics) if metrics is not None else None,
+        generation_metrics=_generation_metrics_for_api(row.get("generation_metrics")),
         failure_reason=row.get("failure_reason"),
         activated_at=row.get("activated_at"),
         created_at=row["created_at"],
@@ -183,6 +225,48 @@ class DeckAdminService:
         logger.info("start_generation completed deck_id=%s", response.deck_id)
         return response
 
+    async def start_prompt_generation(
+        self, request: AdminDeckPromptGenerateRequest
+    ) -> AdminDeckOperationResponse:
+        """Persist a generating deck for the primary prompt-to-deck path.
+
+        Args:
+            request: Validated region, one-line theme, and card count.
+
+        Returns:
+            Operation response with ``generating`` status.
+
+        Side effects:
+            Inserts one generating deck whose ``generation_input`` stores the
+            prompt payload (concepts are filled in during background invent).
+        """
+        logger.info(
+            "start_prompt_generation called region_tag=%s prompt_chars=%s "
+            "card_count=%s",
+            request.region_tag,
+            len(request.prompt),
+            request.card_count,
+        )
+        payload = {
+            "region_tag": request.region_tag,
+            "prompt": request.prompt,
+            "card_count": request.card_count,
+            "source": "prompt",
+            "concepts": [],
+        }
+        row = await self._repository.create_generating(
+            region_tag=request.region_tag,
+            generation_input=payload,
+        )
+        response = AdminDeckOperationResponse(
+            deck_id=row["id"], status=DeckStatus.GENERATING
+        )
+        logger.info(
+            "start_prompt_generation completed deck_id=%s",
+            response.deck_id,
+        )
+        return response
+
     async def run_generation(
         self, deck_id: UUID, request: AdminDeckGenerateRequest
     ) -> None:
@@ -221,6 +305,47 @@ class DeckAdminService:
             return
         logger.info("run_generation completed deck_id=%s", deck_id)
 
+    async def run_prompt_generation(
+        self, deck_id: UUID, request: AdminDeckPromptGenerateRequest
+    ) -> None:
+        """Run prompt invent + progressive image generation in the background.
+
+        Args:
+            deck_id: Existing generating deck.
+            request: Validated prompt request captured by the route.
+
+        Side effects:
+            Invokes Gemini concept invent and progressive NB2 generation.
+            Failures mark the deck failed without leaking exception details;
+            partial cards may remain for review diagnostics.
+        """
+        logger.info(
+            "run_prompt_generation called deck_id=%s region_tag=%s "
+            "prompt_chars=%s card_count=%s",
+            deck_id,
+            request.region_tag,
+            len(request.prompt),
+            request.card_count,
+        )
+        try:
+            await self._generator.generate_from_prompt(
+                region_tag=request.region_tag,
+                prompt=request.prompt,
+                card_count=request.card_count,
+                deck_id=deck_id,
+            )
+        except Exception as exc:
+            reason = f"Generation failed ({type(exc).__name__})"
+            reason = reason[:FAILURE_REASON_MAX_CHARS]
+            logger.error(
+                "run_prompt_generation failed deck_id=%s exception_type=%s",
+                deck_id,
+                type(exc).__name__,
+            )
+            await self._repository.mark_failed(deck_id, reason)
+            return
+        logger.info("run_prompt_generation completed deck_id=%s", deck_id)
+
     async def list_decks(self) -> AdminDeckListResponse:
         """Return newest deck summaries.
 
@@ -253,10 +378,16 @@ class DeckAdminService:
         if row is None:
             raise DeckAdminError(404, "Deck not found")
         generation_input = _json_mapping(row.get("generation_input"))
-        concepts = [
-            AdminConceptInput.model_validate(concept)
-            for concept in generation_input.get("concepts", [])
-        ]
+        # Hide invented concept JSON while generating so the admin UI never
+        # flashes raw Gemini concept payloads during progressive image work.
+        status = DeckStatus(row["status"])
+        if status is DeckStatus.GENERATING:
+            concepts: list[AdminConceptInput] = []
+        else:
+            concepts = [
+                AdminConceptInput.model_validate(concept)
+                for concept in generation_input.get("concepts", [])
+            ]
         cards: list[AdminDeckCardReview] = []
         for card in row.get("cards", []):
             labels = {

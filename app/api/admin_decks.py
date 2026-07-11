@@ -3,7 +3,8 @@
 The router validates frozen contract models, delegates all behavior to the
 injectable deck-admin service, and schedules expensive generation only after a
 generating row exists. It never accepts or returns credentials or inline image
-payloads.
+payloads. Static paths such as ``/from-prompt`` are registered before
+``/{deck_id}`` so they are not captured as deck UUIDs.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from contracts.api_types import (
     AdminDeckGenerateRequest,
     AdminDeckListResponse,
     AdminDeckOperationResponse,
+    AdminDeckPromptGenerateRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,7 +62,7 @@ async def generate_deck(
     background_tasks: BackgroundTasks,
     service: ServiceDependency,
 ) -> AdminDeckOperationResponse:
-    """Create a generating deck and schedule expensive work after response.
+    """Create a generating deck from explicit concepts (advanced JSON path).
 
     Args:
         payload: Validated operator region and concepts.
@@ -78,6 +80,47 @@ async def generate_deck(
     response = await service.start_generation(payload)
     background_tasks.add_task(service.run_generation, response.deck_id, payload)
     logger.info("generate_deck scheduled deck_id=%s", response.deck_id)
+    return response
+
+
+@router.post(
+    "/from-prompt",
+    response_model=AdminDeckOperationResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def generate_deck_from_prompt(
+    payload: AdminDeckPromptGenerateRequest,
+    background_tasks: BackgroundTasks,
+    service: ServiceDependency,
+) -> AdminDeckOperationResponse:
+    """Create a generating deck from a one-line theme (primary operator path).
+
+    Args:
+        payload: Validated region, theme prompt, and card count.
+        background_tasks: FastAPI response-lifecycle task scheduler.
+        service: Injected deck administration service.
+
+    Returns:
+        A 202 operation response identifying the generating deck. Concept JSON
+        is never returned here; the UI polls detail for progressive cards.
+    """
+    logger.info(
+        "generate_deck_from_prompt called region_tag=%s prompt_chars=%s "
+        "card_count=%s",
+        payload.region_tag,
+        len(payload.prompt),
+        payload.card_count,
+    )
+    response = await service.start_prompt_generation(payload)
+    background_tasks.add_task(
+        service.run_prompt_generation,
+        response.deck_id,
+        payload,
+    )
+    logger.info(
+        "generate_deck_from_prompt scheduled deck_id=%s",
+        response.deck_id,
+    )
     return response
 
 
@@ -110,6 +153,8 @@ async def review_deck(
 
     Returns:
         Deck detail containing same-origin image URLs, never inline images.
+        While status is ``generating``, ``concepts`` is empty so raw invent
+        JSON is not exposed; card labels appear as images are persisted.
     """
     logger.info("review_deck route called deck_id=%s", deck_id)
     try:
@@ -136,6 +181,7 @@ async def activate_deck(
 
     Returns:
         Live operation response. Repeating activation for a live deck is safe.
+        Generating and failed decks remain rejected by the service.
     """
     logger.info("activate_deck route called deck_id=%s", deck_id)
     try:
