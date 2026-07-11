@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def isolated_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
-    """Point ``DATA_DIR`` at a temporary directory and clear settings cache.
+    """Isolate runtime paths, deployment identity, and secrets for each test.
 
     Args:
         tmp_path: Pytest temporary directory root.
@@ -34,12 +34,17 @@ def isolated_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterat
         The temporary data directory path used for the test.
 
     Side effects:
-        Sets ``DATA_DIR`` in the process environment and clears
-        ``get_settings`` cache before and after the test.
+        Sets deterministic test environment values, removes deployment markers
+        and credentials inherited from ``.env``, and clears ``get_settings``
+        cache before and after the test.
     """
     logger.info("isolated_data_dir fixture setup")
     data_dir = tmp_path / "data"
     monkeypatch.setenv("DATA_DIR", str(data_dir))
+    monkeypatch.setenv("APP_ENVIRONMENT", "development")
+    monkeypatch.setenv("INSTANCE_MARKER", "")
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setenv("DECK_ADMIN_API_KEY", "")
     get_settings.cache_clear()
     yield data_dir
     get_settings.cache_clear()

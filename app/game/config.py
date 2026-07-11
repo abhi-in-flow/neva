@@ -1,7 +1,8 @@
 """Centralized game-core feature configuration.
 
-Holds thresholds, scoring constants, media limits, and playful re-record copy
-used by matchmaking, audio acceptance, turn timing, and state composition.
+Holds thresholds, scoring constants, media limits, matchmaking queue activity
+TTL, nickname allocation retries, and playful re-record copy used by
+matchmaking, audio acceptance, turn timing, and state composition.
 Session ``rounds_cap`` remains in ``app.config.Settings``; this module covers
 game-owned knobs only so feature code never scatters magic numbers.
 """
@@ -34,6 +35,12 @@ class GameFeatureConfig:
             creation; ``None`` disables deadlines.
         ffprobe_timeout_s: Subprocess timeout for duration probes.
         ffmpeg_timeout_s: Subprocess timeout for volume probes.
+        matchmaking_queue_ttl_seconds: Evict matchmaking queue rows whose
+            ``enqueued_at`` is older than this many seconds. Frontend
+            ``POST /api/pair/request`` heartbeats (~2s) refresh the timestamp;
+            the default (~30s) sits comfortably above that interval.
+        nickname_alloc_max_attempts: Upper bound on insert retries when
+            reserving a case-insensitively unique nickname.
     """
 
     audio_min_duration_s: float = 1.0
@@ -48,6 +55,8 @@ class GameFeatureConfig:
     turn_deadline_seconds: int | None = 90
     ffprobe_timeout_s: float = 5.0
     ffmpeg_timeout_s: float = 10.0
+    matchmaking_queue_ttl_seconds: float = 30.0
+    nickname_alloc_max_attempts: int = 48
 
 
 _CONFIG = GameFeatureConfig()
@@ -64,12 +73,14 @@ def get_game_config() -> GameFeatureConfig:
     """
     logger.info(
         "get_game_config called audio_min=%s audio_max=%s points=%s "
-        "max_attempts=%s result_hold=%s",
+        "max_attempts=%s result_hold=%s queue_ttl_s=%s nickname_attempts=%s",
         _CONFIG.audio_min_duration_s,
         _CONFIG.audio_max_duration_s,
         _CONFIG.points_per_validation,
         _CONFIG.max_guess_attempts,
         _CONFIG.result_hold_seconds,
+        _CONFIG.matchmaking_queue_ttl_seconds,
+        _CONFIG.nickname_alloc_max_attempts,
     )
     return _CONFIG
 

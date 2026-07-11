@@ -53,6 +53,20 @@ remains forbidden; the waiting screen explains that players need different
 native languages and at least one shared known language. Its QR only shares the
 onboarding URL—matchmaking itself remains automatic and backend-owned.
 
+Queue liveness uses `POST /api/pair/request` as the heartbeat: every enqueue
+refreshes `matchmaking_queue.enqueued_at`. Before a match claim, the backend
+evicts rows older than the configured activity TTL (default 30s, comfortably
+above the ~2s frontend retry interval) inside the same matchmaking
+transaction, so abandoned demo/test players cannot be selected. Already-active
+pairs are returned immediately and are not harmed by queue eviction.
+
+Player nicknames are case-insensitively unique. Join atomically reserves the
+requested friendly name when free; collisions append a compact `#N` suffix
+bounded to the 32-character schema/API limit. Uniqueness is enforced by a
+Postgres unique index on `lower(nickname)` plus insert-retry on unique
+violations (never a read-then-write race). The join response payload shape is
+unchanged; clients observe the persisted nickname via `/api/state`.
+
 ### Deck engine
 
 Generates culturally grounded picture cards with Nano Banana 2 Lite, verifies

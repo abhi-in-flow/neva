@@ -1,19 +1,22 @@
 """In-memory GameStore for isolated game-core tests.
 
 Implements the same behavioral contracts as the Postgres adapter—including
-matchmaking exclusion, turn transitions, and idempotent job insert—without
-opening a database connection or mutating runtime data under ``./data``.
+matchmaking exclusion, queue activity TTL eviction, case-insensitive unique
+nicknames, turn transitions, and idempotent job insert—without opening a
+database connection or mutating runtime data under ``./data``.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import random
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
 from app.game.config import get_game_config
+from app.game.nicknames import next_free_nickname
 from app.game.types import (
     CardRecord,
     LeaderboardRow,
@@ -58,6 +61,65 @@ class MemoryGameStore:
             "validated_pairs": 0,
             "training_eligible_pairs": 0,
         }
+        self._nickname_lock = asyncio.Lock()
+
+    def _nickname_taken(self, candidate: str) -> bool:
+        """Return whether ``candidate`` collides case-insensitively.
+
+        Args:
+            candidate: Proposed display name.
+
+        Returns:
+            True when another player already holds the same lowercased name.
+        """
+        needle = candidate.casefold()
+        return any(p.nickname.casefold() == needle for p in self.players.values())
+
+    def _evict_stale_queue(self, *, keep: UUID | None = None) -> int:
+        """Remove queue rows older than the configured activity TTL.
+
+        Args:
+            keep: Optional player id that must not be evicted (fresh heartbeat).
+
+        Returns:
+            Number of evicted queue rows.
+
+        Side effects:
+            Mutates ``self.queue`` in place.
+        """
+        cfg = get_game_config()
+        ttl = timedelta(seconds=cfg.matchmaking_queue_ttl_seconds)
+        cutoff = _utcnow() - ttl
+        stale = [
+            pid
+            for pid, enqueued_at in self.queue.items()
+            if enqueued_at < cutoff and pid != keep
+        ]
+        for pid in stale:
+            self.queue.pop(pid, None)
+        if stale:
+            logger.info(
+                "MemoryGameStore._evict_stale_queue evicted count=%s ttl_s=%s",
+                len(stale),
+                cfg.matchmaking_queue_ttl_seconds,
+            )
+        return len(stale)
+
+    def _is_actively_queued(self, player_id: UUID) -> bool:
+        """Return whether the player has a non-stale queue heartbeat.
+
+        Args:
+            player_id: Player UUID.
+
+        Returns:
+            True when queued and ``enqueued_at`` is within the activity TTL.
+        """
+        enqueued_at = self.queue.get(player_id)
+        if enqueued_at is None:
+            return False
+        cfg = get_game_config()
+        ttl = timedelta(seconds=cfg.matchmaking_queue_ttl_seconds)
+        return enqueued_at >= _utcnow() - ttl
 
     async def create_player(
         self,
@@ -67,17 +129,18 @@ class MemoryGameStore:
         common_langs: list[str],
         session_token_hash: str,
     ) -> PlayerRecord:
-        """Insert a player into the in-memory tables.
+        """Insert a player with a case-insensitively unique nickname.
 
         Args:
-            nickname: Display name.
+            nickname: Preferred display name.
             native_lang: Declared native language.
             common_langs: Shared languages for matchmaking.
             session_token_hash: SHA-256 hex of the bearer token.
 
         Returns:
-            The created ``PlayerRecord``.
+            The created ``PlayerRecord`` (nickname may include a suffix).
         """
+        cfg = get_game_config()
         logger.info(
             "MemoryGameStore.create_player called nickname_len=%s native_lang=%s "
             "common_count=%s",
@@ -85,16 +148,29 @@ class MemoryGameStore:
             native_lang,
             len(common_langs),
         )
-        player = PlayerRecord(
-            id=uuid4(),
-            nickname=nickname,
-            native_lang=native_lang,
-            common_langs=list(common_langs),
-            session_token_hash=session_token_hash,
-            created_at=_utcnow(),
+        async with self._nickname_lock:
+            reserved = next_free_nickname(
+                nickname,
+                is_taken=self._nickname_taken,
+                max_attempts=cfg.nickname_alloc_max_attempts,
+            )
+            player = PlayerRecord(
+                id=uuid4(),
+                nickname=reserved,
+                native_lang=native_lang,
+                common_langs=list(common_langs),
+                session_token_hash=session_token_hash,
+                created_at=_utcnow(),
+            )
+            self.players[player.id] = player
+            self.players_by_hash[session_token_hash] = player.id
+        logger.info(
+            "MemoryGameStore.create_player completed player_id=%s nickname_len=%s "
+            "exact=%s",
+            player.id,
+            len(player.nickname),
+            player.nickname == nickname.strip(),
         )
-        self.players[player.id] = player
-        self.players_by_hash[session_token_hash] = player.id
         return player
 
     async def get_player_by_token_hash(self, token_hash: str) -> PlayerRecord | None:
@@ -128,17 +204,19 @@ class MemoryGameStore:
         return self.players.get(player_id)
 
     async def enqueue_player(self, player_id: UUID) -> None:
-        """Idempotently enqueue a player for matchmaking.
+        """Insert or refresh the player in the matchmaking queue.
+
+        Every call updates the enqueue timestamp so active ``pair/request``
+        heartbeats keep the player inside the activity TTL.
 
         Args:
-            player_id: Player to place in the queue.
+            player_id: Player to place or refresh in the queue.
         """
         logger.info("MemoryGameStore.enqueue_player called player_id=%s", player_id)
-        if player_id not in self.queue:
-            self.queue[player_id] = _utcnow()
+        self.queue[player_id] = _utcnow()
 
     async def try_match(self, player_id: UUID) -> PairRecord | None:
-        """Match the player with a compatible queued partner.
+        """Match the player with a compatible non-stale queued partner.
 
         Args:
             player_id: Player requesting a match.
@@ -147,21 +225,27 @@ class MemoryGameStore:
             New ``PairRecord`` when matched, otherwise ``None``.
 
         Side effects:
-            Removes both players from the queue and creates the first turn when
-            a live card is available.
+            Evicts stale queue rows, removes both matched players from the
+            queue, and creates the first turn when a live card is available.
+            Existing active pairs are returned without queue mutation.
         """
-        logger.info("MemoryGameStore.try_match called player_id=%s", player_id)
+        cfg = get_game_config()
+        logger.info(
+            "MemoryGameStore.try_match called player_id=%s queue_ttl_s=%s",
+            player_id,
+            cfg.matchmaking_queue_ttl_seconds,
+        )
         existing = await self.get_active_pair(player_id)
         if existing is not None:
             return existing
         me = self.players[player_id]
-        if player_id not in self.queue:
-            self.queue[player_id] = _utcnow()
+        self.queue[player_id] = _utcnow()
+        self._evict_stale_queue(keep=player_id)
 
         candidates = [
             pid
             for pid in list(self.queue)
-            if pid != player_id
+            if pid != player_id and self._is_actively_queued(pid)
         ]
         # Stable order by enqueue time to mimic SKIP LOCKED claim order.
         candidates.sort(key=lambda pid: self.queue[pid])
@@ -227,9 +311,11 @@ class MemoryGameStore:
         *,
         exclude: set[UUID],
     ) -> bool:
-        """Return whether another compatible queued partner exists."""
+        """Return whether another compatible non-stale queued partner exists."""
         for other_id, _enqueued in self.queue.items():
             if other_id == player_id or other_id in exclude:
+                continue
+            if not self._is_actively_queued(other_id):
                 continue
             other = self.players[other_id]
             if other.native_lang == me.native_lang:
@@ -536,7 +622,7 @@ class MemoryGameStore:
             leaderboard_top,
         )
         player = self.players[player_id]
-        queued = player_id in self.queue
+        queued = self._is_actively_queued(player_id)
         pair = await self.get_active_pair(player_id)
         partner = None
         turn = None

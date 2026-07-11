@@ -2,21 +2,27 @@
 
 Implements transactional matchmaking with ``FOR UPDATE SKIP LOCKED``,
 idempotent job inserts via the unique ``(kind, turn_id)`` index, and a single
-round-trip state bundle query suitable for 2-second client polling. All SQL is
-parameterized; callers never interpolate user input into statements.
+round-trip state bundle query suitable for 2-second client polling. Queue
+heartbeats refresh ``enqueued_at`` on every ``pair/request``; rows older than
+the configured activity TTL are evicted inside the matchmaking transaction so
+abandoned test players cannot be selected. Player nicknames are reserved
+case-insensitively with insert-retry on unique violations (never a
+read-then-write race). All SQL is parameterized; callers never interpolate
+user input into statements.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
 import asyncpg
 
 from app.game.config import get_game_config
+from app.game.nicknames import allocate_nickname_candidate
 from app.game.types import (
     CardRecord,
     LeaderboardRow,
@@ -33,6 +39,9 @@ from app.game.types import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Unique index created in schema.sql / migration 0005.
+_NICKNAME_UNIQUE_INDEX = "players_nickname_lower_uidx"
 
 
 def _parse_player(row: asyncpg.Record) -> PlayerRecord:
@@ -127,37 +136,92 @@ class PostgresGameStore:
         common_langs: list[str],
         session_token_hash: str,
     ) -> PlayerRecord:
-        """Insert a player row.
+        """Insert a player row with a case-insensitively unique nickname.
+
+        Tries the requested friendly name first. On a uniqueness collision,
+        retries with a compact ``#N`` suffix. Each INSERT runs as its own
+        statement against the pool so a UniqueViolation does not abort a
+        longer transaction.
 
         Args:
-            nickname: Display name (1–32 chars).
+            nickname: Preferred display name (1–32 chars).
             native_lang: Declared native language.
             common_langs: Shared languages list.
             session_token_hash: SHA-256 hex of the bearer token.
 
         Returns:
-            Created player record.
+            Created player record (nickname may include a collision suffix).
+
+        Raises:
+            RuntimeError: When nickname allocation exhausts retry budget.
         """
+        cfg = get_game_config()
+        max_attempts = cfg.nickname_alloc_max_attempts
         logger.info(
             "PostgresGameStore.create_player called nickname_len=%s native_lang=%s "
-            "common_count=%s",
+            "common_count=%s max_attempts=%s",
             len(nickname),
             native_lang,
             len(common_langs),
+            max_attempts,
         )
-        row = await self._pool.fetchrow(
-            """
-            INSERT INTO players (nickname, native_lang, common_langs, session_token_hash)
-            VALUES ($1, $2, $3::jsonb, $4)
-            RETURNING id, nickname, native_lang, common_langs, session_token_hash, created_at
-            """,
-            nickname,
-            native_lang,
-            json.dumps(common_langs),
-            session_token_hash,
+        langs_json = json.dumps(common_langs)
+        last_error: BaseException | None = None
+        for attempt in range(max_attempts):
+            candidate = allocate_nickname_candidate(nickname, attempt)
+            try:
+                # Separate pool statement per attempt: UniqueViolation aborts
+                # only this implicit transaction, never a caller-held one.
+                row = await self._pool.fetchrow(
+                    """
+                    INSERT INTO players (
+                        nickname, native_lang, common_langs, session_token_hash
+                    )
+                    VALUES ($1, $2, $3::jsonb, $4)
+                    RETURNING id, nickname, native_lang, common_langs,
+                              session_token_hash, created_at
+                    """,
+                    candidate,
+                    native_lang,
+                    langs_json,
+                    session_token_hash,
+                )
+            except asyncpg.UniqueViolationError as exc:
+                last_error = exc
+                constraint = exc.constraint_name or ""
+                if constraint and constraint != _NICKNAME_UNIQUE_INDEX:
+                    logger.info(
+                        "PostgresGameStore.create_player unique_violation "
+                        "constraint=%s attempt=%s (non-nickname)",
+                        constraint,
+                        attempt,
+                    )
+                    raise
+                logger.info(
+                    "PostgresGameStore.create_player nickname_collision "
+                    "attempt=%s candidate_len=%s constraint=%s",
+                    attempt,
+                    len(candidate),
+                    constraint or "unknown",
+                )
+                continue
+            assert row is not None
+            logger.info(
+                "PostgresGameStore.create_player completed player_id=%s "
+                "attempt=%s nickname_len=%s exact=%s",
+                row["id"],
+                attempt,
+                len(row["nickname"]),
+                attempt == 0,
+            )
+            return _parse_player(row)
+        logger.info(
+            "PostgresGameStore.create_player exhausted nickname_len=%s "
+            "max_attempts=%s",
+            len(nickname),
+            max_attempts,
         )
-        assert row is not None
-        return _parse_player(row)
+        raise RuntimeError("unable to allocate a unique nickname") from last_error
 
     async def get_player_by_token_hash(self, token_hash: str) -> PlayerRecord | None:
         """Lookup a player by hashed bearer token."""
@@ -189,13 +253,22 @@ class PostgresGameStore:
         return _parse_player(row) if row else None
 
     async def enqueue_player(self, player_id: UUID) -> None:
-        """Idempotently insert the player into the matchmaking queue."""
+        """Insert or refresh the player in the matchmaking queue.
+
+        Every call (including re-requests from the frontend heartbeat) updates
+        ``enqueued_at`` to ``now()`` so active waiters stay within the queue
+        activity TTL. Already-paired players are not enqueued by the service.
+
+        Args:
+            player_id: Player to place or refresh in the queue.
+        """
         logger.info("PostgresGameStore.enqueue_player called player_id=%s", player_id)
         await self._pool.execute(
             """
-            INSERT INTO matchmaking_queue (player_id)
-            VALUES ($1)
-            ON CONFLICT (player_id) DO NOTHING
+            INSERT INTO matchmaking_queue (player_id, enqueued_at)
+            VALUES ($1, now())
+            ON CONFLICT (player_id) DO UPDATE
+            SET enqueued_at = excluded.enqueued_at
             """,
             player_id,
         )
@@ -205,6 +278,9 @@ class PostgresGameStore:
 
         Match rules: shared common language, different native language, never
         self. Prefer partners not previously paired when alternatives exist.
+        Before scanning candidates, evict queue rows older than the configured
+        activity TTL so abandoned waiters cannot be selected. Active pairs are
+        returned immediately without touching the queue.
 
         Args:
             player_id: Player requesting a match (must already be queued).
@@ -212,7 +288,13 @@ class PostgresGameStore:
         Returns:
             New or existing active pair, or ``None`` when still waiting.
         """
-        logger.info("PostgresGameStore.try_match called player_id=%s", player_id)
+        cfg = get_game_config()
+        ttl = timedelta(seconds=cfg.matchmaking_queue_ttl_seconds)
+        logger.info(
+            "PostgresGameStore.try_match called player_id=%s queue_ttl_s=%s",
+            player_id,
+            cfg.matchmaking_queue_ttl_seconds,
+        )
         async with self._pool.acquire() as conn:
             async with conn.transaction():
                 existing = await conn.fetchrow(
@@ -229,14 +311,38 @@ class PostgresGameStore:
                 if existing:
                     return _parse_pair(existing)
 
+                # Refresh heartbeat inside the match txn (pair/request already
+                # called enqueue_player; this keeps SKIP LOCKED races consistent).
                 await conn.execute(
                     """
-                    INSERT INTO matchmaking_queue (player_id)
-                    VALUES ($1)
-                    ON CONFLICT (player_id) DO NOTHING
+                    INSERT INTO matchmaking_queue (player_id, enqueued_at)
+                    VALUES ($1, now())
+                    ON CONFLICT (player_id) DO UPDATE
+                    SET enqueued_at = excluded.enqueued_at
                     """,
                     player_id,
                 )
+
+                # Evict stale waiters before candidate selection (race-safe:
+                # same transaction as FOR UPDATE SKIP LOCKED claim).
+                evicted = await conn.fetch(
+                    """
+                    DELETE FROM matchmaking_queue
+                    WHERE enqueued_at < now() - $1::interval
+                      AND player_id <> $2
+                    RETURNING player_id
+                    """,
+                    ttl,
+                    player_id,
+                )
+                if evicted:
+                    logger.info(
+                        "PostgresGameStore.try_match evicted_stale count=%s "
+                        "player_id=%s",
+                        len(evicted),
+                        player_id,
+                    )
+
                 me = await conn.fetchrow(
                     """
                     SELECT id, nickname, native_lang, common_langs, session_token_hash, created_at
@@ -278,6 +384,7 @@ class PostgresGameStore:
                         FROM matchmaking_queue q
                         JOIN players p ON p.id = q.player_id
                         WHERE q.player_id <> $1
+                          AND q.enqueued_at >= now() - $4::interval
                           AND p.native_lang <> $2
                           AND EXISTS (
                               SELECT 1
@@ -295,6 +402,7 @@ class PostgresGameStore:
                     player_id,
                     me["native_lang"],
                     my_langs,
+                    ttl,
                 )
                 if partner is None:
                     logger.info("PostgresGameStore.try_match waiting player_id=%s", player_id)
@@ -723,7 +831,10 @@ class PostgresGameStore:
             ),
             queued AS (
                 SELECT EXISTS(
-                    SELECT 1 FROM matchmaking_queue WHERE player_id = $1
+                    SELECT 1
+                    FROM matchmaking_queue
+                    WHERE player_id = $1
+                      AND enqueued_at >= now() - $4::interval
                 ) AS is_queued
             ),
             active_pair AS (
@@ -819,6 +930,7 @@ class PostgresGameStore:
             player_id,
             cfg.points_per_validation,
             leaderboard_top,
+            timedelta(seconds=cfg.matchmaking_queue_ttl_seconds),
         )
         assert row is not None
         player_data = row["player"]

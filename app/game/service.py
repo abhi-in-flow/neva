@@ -92,7 +92,7 @@ class GameService:
         """Register a player and issue a bearer session token.
 
         Args:
-            nickname: Display name.
+            nickname: Preferred display name (may receive a collision suffix).
             native_lang: Declared native language.
             common_langs: Languages usable as the shared guessing language.
 
@@ -100,7 +100,9 @@ class GameService:
             ``JoinResponse`` containing the raw session token.
 
         Side effects:
-            Inserts a player row with the token hash only.
+            Inserts a player row with the token hash only. The store atomically
+            reserves a case-insensitively unique nickname; the API payload shape
+            is unchanged (actual nickname is visible via ``/api/state``).
         """
         logger.info(
             "GameService.join called nickname_len=%s native_lang=%s common_count=%s",

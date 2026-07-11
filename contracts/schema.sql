@@ -17,6 +17,10 @@ CREATE TABLE players (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Case-insensitive uniqueness for display names (join reserves the friendly
+-- name when free; collisions append a compact bounded suffix in application code).
+CREATE UNIQUE INDEX players_nickname_lower_uidx ON players (lower(nickname));
+
 CREATE TABLE pairs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     player_a UUID NOT NULL REFERENCES players(id),

@@ -33,7 +33,12 @@ class GameStore(Protocol):
         common_langs: list[str],
         session_token_hash: str,
     ) -> PlayerRecord:
-        """Insert a player and return the created row."""
+        """Insert a player and return the created row.
+
+        Persisted nicknames are case-insensitively unique. The requested
+        friendly name is reserved when available; collisions receive a compact
+        bounded suffix within the 32-character limit.
+        """
 
     async def get_player_by_token_hash(self, token_hash: str) -> PlayerRecord | None:
         """Lookup a player by hashed bearer token."""
@@ -42,10 +47,17 @@ class GameStore(Protocol):
         """Lookup a player by id."""
 
     async def enqueue_player(self, player_id: UUID) -> None:
-        """Idempotently insert the player into the matchmaking queue."""
+        """Insert or refresh the player in the matchmaking queue.
+
+        Every ``pair/request`` heartbeat must update ``enqueued_at`` so active
+        waiters stay inside the queue activity TTL.
+
+        Args:
+            player_id: Player to place or refresh in the queue.
+        """
 
     async def try_match(self, player_id: UUID) -> PairRecord | None:
-        """Attempt transactional matchmaking with SKIP LOCKED semantics."""
+        """Attempt transactional matchmaking with SKIP LOCKED and TTL eviction."""
 
     async def get_active_pair(self, player_id: UUID) -> PairRecord | None:
         """Return the player's active pair if any."""
