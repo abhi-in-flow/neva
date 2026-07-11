@@ -10,6 +10,7 @@ in-memory publisher so no API, DB, or runtime-data mutation occurs.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -23,10 +24,12 @@ from deckgen.config import (
     DECK_STATUS_LIVE,
     DECK_STATUS_READY,
     DEFAULT_CARD_COUNT,
+    IMAGE_GENERATION_CONCURRENCY,
     IMAGE_MIME_TYPE,
     IMAGE_MODEL,
     MAX_IMAGE_RETRIES,
     N_DECOYS,
+    PROMPT_MAX_IMAGE_RETRIES,
     PROGRESS_STAGE_DECOYS,
     PROGRESS_STAGE_IMAGES,
     PROGRESS_STAGE_INVENTING,
@@ -189,6 +192,7 @@ async def generate_verified_image(
     metrics: DeckMetrics,
     *,
     max_retries: int = MAX_IMAGE_RETRIES,
+    image_semaphore: asyncio.Semaphore | None = None,
 ) -> bytes:
     """Generate an image and verify it, regenerating up to ``max_retries``.
 
@@ -198,6 +202,8 @@ async def generate_verified_image(
         region_context: Cultural region context.
         metrics: Metrics accumulator.
         max_retries: Retries after the first attempt.
+        image_semaphore: Optional shared cap for concurrent NB2 calls. Gemini
+            verification runs outside this image-only semaphore.
 
     Returns:
         Accepted image bytes.
@@ -223,11 +229,19 @@ async def generate_verified_image(
             concept.id,
             len(prompt),
         )
-        image = await client.generate_image(
-            model=IMAGE_MODEL,
-            prompt=prompt,
-            operation="generate_card_image",
-        )
+        if image_semaphore is None:
+            image = await client.generate_image(
+                model=IMAGE_MODEL,
+                prompt=prompt,
+                operation="generate_card_image",
+            )
+        else:
+            async with image_semaphore:
+                image = await client.generate_image(
+                    model=IMAGE_MODEL,
+                    prompt=prompt,
+                    operation="generate_card_image",
+                )
         metrics.record_image_attempt()
         logger.info(
             "GenAI response generate_image model=%s operation=generate_card_image "
@@ -522,6 +536,7 @@ async def build_deck(
     progressive: bool = False,
     generation_source: str | None = None,
     prompt_theme: str | None = None,
+    initial_metrics: DeckMetrics | None = None,
 ) -> DeckBuildResult:
     """Run the full deck pipeline and publish (or dry-run publish).
 
@@ -543,6 +558,8 @@ async def build_deck(
         generation_source: Optional ``generation_input.source`` override
             (``prompt``, ``operator``, or ``curated``).
         prompt_theme: Optional one-line theme stored with prompt-sourced decks.
+        initial_metrics: Optional accumulator carrying earlier costs, such as
+            prompt concept generation, into the same deck total.
 
     Returns:
         ``DeckBuildResult`` with metrics and publish outcome.
@@ -573,7 +590,7 @@ async def build_deck(
         raise ValueError("progressive mode requires an existing deck_id")
     region_key = region.strip().lower()
     region_context = resolve_region_context(region_key)
-    metrics = DeckMetrics()
+    metrics = initial_metrics or DeckMetrics()
 
     genai = client or build_client(dry_run=dry_run)
     if publisher is not None:
@@ -624,11 +641,37 @@ async def build_deck(
 
         translated = await translate_labels_batch(genai, selected_concepts, metrics)
 
-        built: list[BuiltCard] = []
-        for concept in selected_concepts:
+        image_semaphore = asyncio.Semaphore(IMAGE_GENERATION_CONCURRENCY)
+        persist_lock = asyncio.Lock()
+        persisted_count = 0
+
+        async def _build_one(concept: Concept) -> BuiltCard:
+            """Generate, verify, and optionally persist one card.
+
+            Args:
+                concept: One validated concept from this deck.
+
+            Returns:
+                Built card retaining input ordering when gathered.
+
+            Side effects:
+                Makes GenAI calls and, in progressive mode, inserts one card.
+                NB2 calls share the four-slot image semaphore; persistence is
+                serialized only long enough to publish accurate card counts.
+            """
+            nonlocal persisted_count
             concept_region_context = concept.locale or region_context
             image_bytes = await generate_verified_image(
-                genai, concept, concept_region_context, metrics
+                genai,
+                concept,
+                concept_region_context,
+                metrics,
+                max_retries=(
+                    PROMPT_MAX_IMAGE_RETRIES
+                    if generation_source == "prompt"
+                    else MAX_IMAGE_RETRIES
+                ),
+                image_semaphore=image_semaphore,
             )
             built_card = BuiltCard(
                 card_id=uuid.uuid4(),
@@ -636,26 +679,48 @@ async def build_deck(
                 image_bytes=image_bytes,
                 labels=translated[concept.id],
             )
-            built.append(built_card)
             if progressive:
                 assert deck_id is not None
-                await pub.persist_card(
-                    deck_id=deck_id,
-                    card=CardRecord(
-                        card_id=built_card.card_id,
-                        concept_id=built_card.concept.id,
-                        image_bytes=built_card.image_bytes,
-                        label_common=built_card.labels,
-                        decoy_card_ids=[],
-                        verified=True,
-                    ),
-                    generation_metrics=_progress_metrics(
-                        metrics,
-                        stage=PROGRESS_STAGE_IMAGES,
-                        cards_target=resolved_card_count,
-                        cards_ready=len(built),
-                    ),
-                )
+                async with persist_lock:
+                    next_count = persisted_count + 1
+                    await pub.persist_card(
+                        deck_id=deck_id,
+                        card=CardRecord(
+                            card_id=built_card.card_id,
+                            concept_id=built_card.concept.id,
+                            image_bytes=built_card.image_bytes,
+                            label_common=built_card.labels,
+                            decoy_card_ids=[],
+                            verified=True,
+                        ),
+                        generation_metrics=_progress_metrics(
+                            metrics,
+                            stage=PROGRESS_STAGE_IMAGES,
+                            cards_target=resolved_card_count,
+                            cards_ready=next_count,
+                        ),
+                    )
+                    persisted_count = next_count
+            return built_card
+
+        logger.info(
+            "build_deck launching parallel card generation card_count=%s "
+            "image_concurrency=%s",
+            resolved_card_count,
+            IMAGE_GENERATION_CONCURRENCY,
+        )
+        card_tasks = [
+            asyncio.create_task(_build_one(concept))
+            for concept in selected_concepts
+        ]
+        try:
+            built = list(await asyncio.gather(*card_tasks))
+        except BaseException:
+            for task in card_tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*card_tasks, return_exceptions=True)
+            raise
 
         if progressive:
             assert deck_id is not None
@@ -813,6 +878,7 @@ async def build_deck_from_prompt(
             region_tag=region,
             prompt=prompt,
             card_count=card_count,
+            metrics=invent_metrics,
         )
     except Exception as exc:
         try:
@@ -838,6 +904,7 @@ async def build_deck_from_prompt(
         progressive=True,
         generation_source="prompt",
         prompt_theme=prompt,
+        initial_metrics=invent_metrics,
     )
 
 

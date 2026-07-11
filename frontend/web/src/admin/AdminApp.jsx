@@ -93,6 +93,16 @@ function progressFraction(detail) {
   return detail?.status === 'generating' ? 0.05 : 0;
 }
 
+function PrivacyNotice() {
+  return (
+    <p className="admin-privacy-notice">
+      <strong>Privacy:</strong>
+      {' '}No personal information is requested; only submitted audio is retained.
+      Gemma 4 training and hosting run locally on this machine.
+    </p>
+  );
+}
+
 function AuthGate({ onReady }) {
   const [value, setValue] = useState(getAdminKey());
   const [error, setError] = useState('');
@@ -113,6 +123,7 @@ function AuthGate({ onReady }) {
       <header className="admin-header">
         <h1 className="admin-brand">Operator Admin</h1>
       </header>
+      <PrivacyNotice />
       <section className="admin-panel">
         <h2>Unlock</h2>
         <p className="admin-muted">
@@ -150,6 +161,7 @@ function DecksPanel() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [expandedCard, setExpandedCard] = useState(null);
 
   const refresh = useCallback(async () => {
     const data = await adminApi.listDecks();
@@ -186,6 +198,15 @@ function DecksPanel() {
     }, ADMIN_DECK_POLL_MS);
     return () => clearInterval(timer);
   }, [detail, loadDetail, refresh]);
+
+  useEffect(() => {
+    if (!expandedCard) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setExpandedCard(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [expandedCard]);
 
   const onGenerateFromPrompt = async () => {
     setError('');
@@ -271,6 +292,7 @@ function DecksPanel() {
   }, [detail]);
 
   const fraction = progressFraction(detail);
+  const costMetrics = detail?.generation_metrics || {};
 
   return (
     <>
@@ -413,7 +435,11 @@ function DecksPanel() {
                 </td>
                 <td>{deck.card_count}</td>
                 <td>{deck.generation_metrics?.images_per_minute ?? '—'}</td>
-                <td>{formatUsd(deck.generation_metrics?.total_cost_usd)}</td>
+                <td>
+                  <strong className="admin-cost-inline">
+                    {formatUsd(deck.generation_metrics?.total_cost_usd)}
+                  </strong>
+                </td>
                 <td>
                   {(deck.status === 'ready' || deck.status === 'live') && (
                     <button
@@ -459,6 +485,24 @@ function DecksPanel() {
               </div>
             </div>
           ) : null}
+          {detail.generation_metrics ? (
+            <div className="admin-cost-spotlight" aria-live="polite">
+              <div>
+                <span>Estimated cost incurred</span>
+                <strong>{formatUsd(costMetrics.total_cost_usd)}</strong>
+              </div>
+              <p>
+                {costMetrics.images_attempted ?? 0}
+                {' '}Nano Banana image calls
+                {' · '}
+                {costMetrics.flash_calls ?? 0}
+                {' '}Gemini Flash calls
+                {typeof costMetrics.nb2_unit_cost_usd === 'number'
+                  ? ` · ${formatUsd(costMetrics.nb2_unit_cost_usd)} per NB2 image`
+                  : ''}
+              </p>
+            </div>
+          ) : null}
           {detail.failure_reason ? (
             <div className="admin-error">{detail.failure_reason}</div>
           ) : null}
@@ -469,7 +513,14 @@ function DecksPanel() {
           <div className="admin-card-grid">
             {(detail.cards || []).map((card) => (
               <figure className="admin-card" key={card.card_id}>
-                <img src={card.image_url} alt={card.label_en} loading="lazy" />
+                <button
+                  className="admin-card-image-button"
+                  type="button"
+                  onClick={() => setExpandedCard(card)}
+                  aria-label={`Open ${card.label_en} image`}
+                >
+                  <img src={card.image_url} alt={card.label_en} loading="lazy" />
+                </button>
                 <figcaption>
                   {card.label_en}
                   {card.verified ? ' · verified' : ' · unverified'}
@@ -496,6 +547,36 @@ function DecksPanel() {
             </div>
           )}
         </section>
+      ) : null}
+      {expandedCard ? (
+        <div
+          className="admin-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setExpandedCard(null);
+          }}
+        >
+          <div
+            className="admin-image-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${expandedCard.label_en} image preview`}
+          >
+            <button
+              className="admin-modal-close"
+              type="button"
+              onClick={() => setExpandedCard(null)}
+              aria-label="Close image preview"
+            >
+              ×
+            </button>
+            <img src={expandedCard.image_url} alt={expandedCard.label_en} />
+            <div className="admin-image-modal-caption">
+              <strong>{expandedCard.label_en}</strong>
+              <span>{expandedCard.verified ? 'Verified' : 'Unverified'}</span>
+            </div>
+          </div>
+        </div>
       ) : null}
     </>
   );
@@ -898,6 +979,7 @@ export default function AdminApp() {
           </button>
         </nav>
       </header>
+      <PrivacyNotice />
       {body}
     </div>
   );

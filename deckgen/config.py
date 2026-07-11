@@ -30,6 +30,11 @@ CONCEPT_MODEL = GEMINI_FLASH
 # --- Generation / verification ---
 MAX_IMAGE_RETRIES = 2  # retries after the first attempt (≤ 3 total attempts)
 MAX_CONCEPT_GEN_RETRIES = 2  # retries after the first invent attempt
+# Prompt-invented concepts are less predictable than curated concepts, so the
+# demo path gets five total image/verification attempts before failing safely.
+PROMPT_MAX_IMAGE_RETRIES = 4
+# Deck orchestration and the shared Gemini client both cap concurrent NB2 calls.
+IMAGE_GENERATION_CONCURRENCY = 4
 VERIFY_THINKING_LEVEL = "low"
 IMAGE_MIME_TYPE = "image/png"
 # Native Gemini image option; translated to ImageConfig by the shared client.

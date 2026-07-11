@@ -28,6 +28,7 @@ from deckgen.config import (
     VERIFY_THINKING_LEVEL,
     resolve_region_context,
 )
+from deckgen.metrics import DeckMetrics
 from deckgen.prompts import (
     CONCEPT_FROM_PROMPT_PROMPT,
     CONCEPT_FROM_PROMPT_RESPONSE_SCHEMA,
@@ -88,6 +89,7 @@ async def invent_concepts_from_prompt(
     prompt: str,
     card_count: int,
     max_retries: int = MAX_CONCEPT_GEN_RETRIES,
+    metrics: DeckMetrics | None = None,
 ) -> list[Concept]:
     """Ask Gemini Flash to invent validated operator concepts for a theme.
 
@@ -97,6 +99,8 @@ async def invent_concepts_from_prompt(
         prompt: One-line operator theme (already stripped by the contract).
         card_count: Exact concept count (must be within prompt min/max).
         max_retries: Retries after the first failed invent/validate attempt.
+        metrics: Optional deck metrics receiving one Flash-call increment per
+            concept-generation attempt.
 
     Returns:
         Validated ``Concept`` instances ready for progressive image generation.
@@ -148,6 +152,8 @@ async def invent_concepts_from_prompt(
             response_schema=CONCEPT_FROM_PROMPT_RESPONSE_SCHEMA,
             thinking_level=VERIFY_THINKING_LEVEL,
         )
+        if metrics is not None:
+            metrics.record_flash_call()
         concept_count = (
             len(raw.get("concepts", [])) if isinstance(raw, dict) else 0
         )

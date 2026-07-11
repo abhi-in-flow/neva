@@ -1,4 +1,4 @@
-# Dialect Data Factory (Neva)
+# Neva
 
 Turn a multiplayer charades game into a zero-touch, validated dialect speech-data pipeline.
 
@@ -128,6 +128,69 @@ uv run python -m scripts.pipeline_view --fixture
 ```
 
 See [`phase-plan/wave-3-launch-demo/ADMIN-DEMO-RUNBOOK.md`](phase-plan/wave-3-launch-demo/ADMIN-DEMO-RUNBOOK.md).
+
+## Gemma training pipeline (bonus track)
+
+The cleaning gauntlet writes **training-eligible** golden records into
+`data/corpus/*.jsonl` with matching FLAC under `data/audio/`. The isolated
+`tune/` harness never opens Postgres or Gemini—it only reads that local corpus.
+
+Nothing in game code changes for a “real” run: the same three steps
+(`prepare` → `train` → `compare`) swap the synthetic fixture for `data/corpus`.
+With a small eligible set (for example 8 real records → ~6 train / 2 holdout),
+raise epochs so the adapter clearly diverges from base on stage—this
+demonstrates the learning loop on genuine dialect speech, not generalization.
+
+### One-shot script
+
+From the repo root (WSL2, GPU, model already cached offline):
+
+```bash
+chmod +x tune/run-real-demo.sh
+./tune/run-real-demo.sh
+```
+
+Defaults: `TUNE_MODEL_ID=unsloth/gemma-4-E4B-it-unsloth-bnb-4bit`,
+`HF_HUB_OFFLINE=1`, `TUNE_EPOCHS=40`, `TUNE_GRAD_ACCUM=2`, artifacts under
+`~/gemma-runs/real-<timestamp>/`. Override with env vars (`REPO_ROOT`,
+`CORPUS_DIR`, `SKIP_COMPARE=1`, etc.).
+
+### Manual steps
+
+```bash
+export TUNE_MODEL_ID="unsloth/gemma-4-E4B-it-unsloth-bnb-4bit"
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+export TUNE_EPOCHS=40 TUNE_GRAD_ACCUM=2
+
+run_root="$HOME/gemma-runs/real-$(date -u +%Y%m%dT%H%M%SZ)"
+prepared="$run_root/prepared"
+artifacts="$run_root/full"
+mkdir -p "$run_root"
+
+uv run --project tune python -m tune.prepare \
+  --corpus "$PWD/data/corpus" \
+  --data-dir "$PWD/data" \
+  --output "$prepared"
+
+uv run --project tune python -m tune.train \
+  --train "$prepared/train.jsonl" \
+  --dataset-manifest "$prepared/dataset_manifest.json" \
+  --output "$artifacts"
+
+uv run --project tune python -m tune.compare \
+  --holdout "$prepared/holdout.jsonl" \
+  --dataset-manifest "$prepared/dataset_manifest.json" \
+  --adapter "$artifacts/adapter" \
+  --artifact-manifest "$artifacts/artifact_manifest.json" \
+  --samples 2
+```
+
+Optional live-mic beat: capture with `tune/capture_demo_audio.ps1`, then
+`python -m tune.demo` with `--live-audio`, `--native-language`, and the
+verified `$artifacts/adapter`. Full smoke/fixture docs: [`tune/README.md`](tune/README.md).
+
+**Judge framing:** a handful of real rows proves corpus → adapter on authentic
+speech; grow the append-only corpus and re-freeze for any generalization claim.
 
 ## Repository layout
 

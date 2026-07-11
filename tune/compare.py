@@ -52,9 +52,26 @@ def generate_output(
     processor: Any,
     messages: list[dict[str, Any]],
     max_new_tokens: int,
+    max_sequence_length: int,
 ) -> str:
-    """Generate one response from a prepared conversation using its native modality."""
-    LOGGER.info("generate_output called message_count=%d max_new_tokens=%d", len(messages), max_new_tokens)
+    """Generate one response from a prepared conversation using its native modality.
+
+    Args:
+        model: Loaded base or adapter-backed Gemma model.
+        processor: Matching multimodal processor.
+        messages: One prepared user/assistant conversation.
+        max_new_tokens: Bounded response-token count.
+        max_sequence_length: Required audio truncation bound for the processor.
+
+    Returns:
+        Decoded generated assistant response.
+    """
+    LOGGER.info(
+        "generate_output called message_count=%d max_new_tokens=%d max_sequence_length=%d",
+        len(messages),
+        max_new_tokens,
+        max_sequence_length,
+    )
     prompt_messages = [messages[0]]
     try:
         inputs = processor.apply_chat_template(
@@ -63,6 +80,11 @@ def generate_output(
             tokenize=True,
             return_dict=True,
             return_tensors="pt",
+            processor_kwargs={
+                "audio_kwargs": {
+                    "max_length": max_sequence_length,
+                }
+            },
         )
         device = next(model.parameters()).device
         inputs = inputs.to(device)
@@ -70,11 +92,12 @@ def generate_output(
         prompt_length = inputs["input_ids"].shape[-1]
         decoded = processor.decode(generated[0][prompt_length:], skip_special_tokens=False)
         parse_response = getattr(processor, "parse_response", None)
-        return (
-            str(parse_response(decoded)).strip()
-            if callable(parse_response)
-            else processor.decode(generated[0][prompt_length:], skip_special_tokens=True).strip()
-        )
+        if callable(parse_response):
+            parsed = parse_response(decoded)
+            if isinstance(parsed, dict) and isinstance(parsed.get("content"), str):
+                return parsed["content"].strip()
+            return str(parsed).strip()
+        return processor.decode(generated[0][prompt_length:], skip_special_tokens=True).strip()
     except Exception as exc:
         raise RuntimeError(
             "Gemma 4 multimodal inference failed for the prepared conversation. Verify "
@@ -108,7 +131,13 @@ def compare_models(
     if callable(for_inference):
         for_inference(base_model)
     base_outputs = [
-        generate_output(base_model, base_processor, row["messages"], config.max_new_tokens)
+        generate_output(
+            base_model,
+            base_processor,
+            row["messages"],
+            config.max_new_tokens,
+            config.max_sequence_length,
+        )
         for row in rows
     ]
     del base_model
@@ -122,7 +151,13 @@ def compare_models(
     if callable(for_inference):
         for_inference(tuned_model)
     tuned_outputs = [
-        generate_output(tuned_model, tuned_processor, row["messages"], config.max_new_tokens)
+        generate_output(
+            tuned_model,
+            tuned_processor,
+            row["messages"],
+            config.max_new_tokens,
+            config.max_sequence_length,
+        )
         for row in rows
     ]
     return [

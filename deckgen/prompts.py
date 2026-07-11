@@ -183,6 +183,9 @@ Operator theme (one line): {theme}
 Invent exactly {card_count} distinct concepts. Each concept must be:
 - Playful and culturally grounded in {region_context}
 - Visually unambiguous at phone size (guessable in about 2 seconds)
+- Built around one dominant, plainly nameable target or short action; avoid
+  complicated relationships, long story beats, and labels that describe the
+  full setting
 - A scene or short action that can be photographed without any text, logos,
   brand marks, sharp identifiable faces, stereotypes, or humiliation
 - Distinct from the others (no near-duplicates or synonym pairs)
@@ -190,7 +193,10 @@ Invent exactly {card_count} distinct concepts. Each concept must be:
 For each concept return:
 - concept_id: lowercase slug, letters/digits/hyphen/underscore, starting with
   a letter or digit (example: monsoon_tea_stall)
-- label_en: short English guess label (1-5 words)
+- label_en: the broad, obvious answer a player would say (1-4 common English
+  words). Name only the target/action; omit the market, state, food, clothing,
+  and other scene details unless they are the target itself. For example use
+  "ducks under umbrella", not "ducks guarding jolpan market stall".
 - locale: short cultural setting phrase for this card (may refine the region)
 - cultural_hint: one vivid sentence describing the absurd/funny scene to draw
 

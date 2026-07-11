@@ -6,6 +6,7 @@ Postgres mutations, or runtime ``data/`` writes.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -29,6 +30,7 @@ from contracts.api_types import (
 from deckgen.client import FakeDeckGenAIClient
 from deckgen.concept_gen import invent_concepts_from_prompt
 from deckgen.config import (
+    IMAGE_GENERATION_CONCURRENCY,
     PROGRESS_STAGE_IMAGES,
     PROGRESS_STAGE_READY,
     REGION_CONTEXTS,
@@ -163,6 +165,87 @@ async def test_progressive_publish_persists_then_finalizes() -> None:
     assert any(item.get("progressive") for item in publisher.published)
 
 
+class ConcurrencyTrackingClient(FakeDeckGenAIClient):
+    """Fake client that records concurrent in-flight image generations."""
+
+    def __init__(self) -> None:
+        """Initialize counters around the deterministic fake client."""
+        super().__init__()
+        self.active_image_calls = 0
+        self.max_active_image_calls = 0
+
+    async def generate_image(self, **kwargs):
+        """Delay fake image generation so orchestration concurrency is observable."""
+        self.active_image_calls += 1
+        self.max_active_image_calls = max(
+            self.max_active_image_calls,
+            self.active_image_calls,
+        )
+        try:
+            await asyncio.sleep(0.01)
+            return await super().generate_image(**kwargs)
+        finally:
+            self.active_image_calls -= 1
+
+
+@pytest.mark.asyncio
+async def test_image_generation_runs_four_nb2_calls_in_parallel() -> None:
+    """Generate six cards while enforcing exactly the configured four-call cap."""
+    client = ConcurrencyTrackingClient()
+    result = await build_deck(
+        region="assam",
+        concepts=_request_concepts(),
+        dry_run=True,
+        client=client,
+        publisher=InMemoryPublisher(),
+    )
+    assert len(result.cards) == 6
+    assert IMAGE_GENERATION_CONCURRENCY == 4
+    assert client.max_active_image_calls == IMAGE_GENERATION_CONCURRENCY
+
+
+@pytest.mark.asyncio
+async def test_prompt_path_uses_extended_image_verification_budget() -> None:
+    """Prompt concepts can recover after four verifier rejects."""
+    rejected = {
+        "depicts_label": False,
+        "has_text": False,
+        "has_ambiguity": True,
+        "competing_interpretation": "something broader",
+        "cultural_ok": True,
+        "verdict": "fail",
+        "reason": "target is not obvious enough",
+    }
+    accepted = {
+        "depicts_label": True,
+        "has_text": False,
+        "has_ambiguity": False,
+        "competing_interpretation": None,
+        "cultural_ok": True,
+        "verdict": "pass",
+        "reason": "clear",
+    }
+    client = FakeDeckGenAIClient(
+        verify_results=[rejected, rejected, rejected, rejected, accepted]
+    )
+    publisher = InMemoryPublisher()
+    result = await build_deck(
+        region="assam",
+        concepts=_request_concepts(),
+        dry_run=True,
+        client=client,
+        publisher=publisher,
+        deck_id=uuid4(),
+        final_status="ready",
+        progressive=True,
+        generation_source="prompt",
+    )
+    image_calls = [call for call in client.calls if call["method"] == "generate_image"]
+    assert result.publish is not None
+    assert result.publish.status == "ready"
+    assert len(image_calls) == 10
+
+
 def _request_concepts():
     """Convert the six-concept request into pipeline Concept objects."""
     from deckgen.concepts import concepts_from_operator
@@ -189,6 +272,8 @@ async def test_build_deck_from_prompt_progressive_end_to_end() -> None:
         final_status="ready",
     )
     assert len(result.cards) == 6
+    flash_calls = [call for call in client.calls if call["method"] == "generate_json"]
+    assert result.metrics.flash_calls == len(flash_calls)
     assert publisher.deck_statuses[str(deck_id)] == "ready"
     assert len(publisher.progressive_cards[str(deck_id)]) == 6
     invent = publisher.generation_states[str(deck_id)]["generation_input"]

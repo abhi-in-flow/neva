@@ -90,7 +90,59 @@ uv run --project tune python -m tune.compare \
 ## Full eligible-corpus run
 
 This remains an explicit go/no-go operation. Freeze the corpus before
-preparation and choose artifact paths outside `data/`:
+preparation and choose artifact paths outside `data/`. The same
+`prepare` → `train` → `compare` path used for synthetic fixtures points at
+`data/corpus` and `data/` for real human speech (audio mode).
+
+### Real-corpus demo (small eligible set)
+
+When only a handful of records are training-eligible (for example 8 real →
+~6 train / 2 holdout), the stock 3-epoch / grad-accum-8 profile finishes in too
+few optimizer steps for TUNED to visibly differ from BASE. Overfit the small
+validated set with more epochs for a truthful “the corpus teaches the model”
+stage signal—not a generalization claim.
+
+One-shot (repo root):
+
+```bash
+./tune/run-real-demo.sh
+```
+
+Or manually:
+
+```bash
+export TUNE_MODEL_ID="unsloth/gemma-4-E4B-it-unsloth-bnb-4bit"
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+export TUNE_EPOCHS=40
+export TUNE_GRAD_ACCUM=2
+
+run_root="$HOME/gemma-runs/real-$(date -u +%Y%m%dT%H%M%SZ)"
+prepared="$run_root/prepared"
+artifacts="$run_root/full"
+mkdir -p "$run_root"
+
+uv run --project tune python -m tune.prepare \
+  --corpus "/home/abhilash/neva/data/corpus" \
+  --data-dir "/home/abhilash/neva/data" \
+  --output "$prepared"
+
+uv run --project tune python -m tune.train \
+  --train "$prepared/train.jsonl" \
+  --dataset-manifest "$prepared/dataset_manifest.json" \
+  --output "$artifacts"
+
+uv run --project tune python -m tune.compare \
+  --holdout "$prepared/holdout.jsonl" \
+  --dataset-manifest "$prepared/dataset_manifest.json" \
+  --adapter "$artifacts/adapter" \
+  --artifact-manifest "$artifacts/artifact_manifest.json" \
+  --samples 2
+```
+
+The default full profile (without the demo overrides) uses E4B instruction-tuned
+4-bit QLoRA, rank 16, dropout 0, batch 1, gradient accumulation 8, cosine
+scheduling, and three epochs. All controls are centralized in `tune/config.py`
+and use `TUNE_*` overrides. Re-freeze and re-run as the append-only corpus grows.
 
 ```bash
 run_root="$HOME/gemma-runs/$(date -u +%Y%m%dT%H%M%SZ)"
@@ -108,10 +160,6 @@ uv run --project tune python -m tune.train \
   --dataset-manifest "$prepared/dataset_manifest.json" \
   --output "$artifacts"
 ```
-
-The full profile uses E4B instruction-tuned 4-bit QLoRA, rank 16, dropout 0,
-batch 1, gradient accumulation 8, cosine scheduling, and three epochs. All
-controls are centralized in `tune/config.py` and use `TUNE_*` overrides.
 
 Resume only from a checkpoint beneath the same output directory:
 

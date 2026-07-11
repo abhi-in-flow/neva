@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     gemini_flash_rpm: int = 60
     gemini_flash_input_usd_per_million_tokens: float = 1.5
     gemini_flash_output_usd_per_million_tokens: float = 9.0
-    nano_banana_max_concurrency: int = 2
+    nano_banana_max_concurrency: int = 4
     nano_banana_rpm: int = 30
     nano_banana_cost_microusd_per_image: int = 33600
     deck_admin_api_key: str = ""

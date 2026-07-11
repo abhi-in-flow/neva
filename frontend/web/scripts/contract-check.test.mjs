@@ -246,5 +246,11 @@ test('admin Decks panel uses prompt form and centralized poll interval', () => {
   assert.match(source, /Inventing concepts with Gemini/);
   assert.match(source, /Nano Banana 2 Lite/);
   assert.match(source, /admin-card-skeleton/);
+  assert.match(source, /Estimated cost incurred/);
+  assert.match(source, /admin-cost-spotlight/);
+  assert.match(source, /admin-image-modal/);
+  assert.match(source, /Open \$\{card\.label_en\} image/);
+  assert.match(source, /No personal information is requested/);
+  assert.match(source, /Gemma 4 training and hosting run locally/);
   assert.match(source, /Advanced · paste concepts JSON/);
 });

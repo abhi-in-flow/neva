@@ -93,8 +93,10 @@ Generates culturally grounded picture cards with Nano Banana 2 Lite, verifies
 image-label consistency with Gemini, chooses decoys, and publishes complete
 decks. The CLI and advanced JSON admin path still publish **atomically**. The
 primary admin prompt-to-deck path publishes **progressively**: each verified
-card is persisted while status stays `generating`, then decoys are backfilled
-and status becomes `ready`. Generation speed, cost, rejection rate, and
+card is persisted while status stays `generating`; up to four Nano Banana
+image requests run concurrently, with verification and short serialized
+publishing after each completion. Decoys are then backfilled and status becomes
+`ready`. Generation speed, cost, rejection rate, and
 `progress_stage` / `cards_ready` / `cards_target` are first-class demo metrics.
 
 Region tags include all 28 Indian states (lowercase hyphenated) plus legacy
@@ -125,7 +127,7 @@ the operator enters a one-line theme and an Indian state (or an example
 prompt). `POST /api/admin/decks/from-prompt` immediately creates a
 `generating` deck and returns 202. Background work invents concepts with
 Gemini Flash (never returned to the browser while generating), then Nano
-Banana 2 Lite generates images. Progressive publish persists each verified
+Banana 2 Lite generates up to four images concurrently. Progressive publish persists each verified
 card row as soon as it is ready, updates `generation_metrics` with
 `progress_stage` / `cards_ready` / `cards_target` for the review UI, runs
 batch decoy selection, backfills decoys, and only then sets status to
@@ -151,7 +153,8 @@ The React build also serves a separate `/admin` root (pathname fork beside
 the surface provides:
 
 1. **Decks** — primary prompt + Indian-state form with example themes;
-   progressive review grid (skeletons + images as cards appear); explicit
+   progressive review grid (skeletons + images as cards appear), click-to-open
+   image modal, prominently highlighted live/final estimated cost, and explicit
    activate. JSON concept upload remains under a collapsed Advanced section.
 2. **Metrics** — poll public `GET /api/metrics`, deck `generation_metrics`,
    and protected aggregate eligibility funnel counts.
@@ -160,6 +163,10 @@ the surface provides:
    the browser.
 4. **Tune** — static terminal runbook only; Gemma train/compare stays in
    `tune/demo.py` and never touches Postgres.
+
+The surface carries a short privacy notice: no personal information is
+requested, submitted audio is retained, and Gemma 4 training plus demo hosting
+run locally on the operator machine.
 
 Per-utterance WebM→FLAC→gate walkthroughs remain on the operator CLI
 (`python -m scripts.pipeline_view`) so participant audio stays off the web UI.
@@ -181,6 +188,13 @@ data, so a fast worker can never package before the partner's validation.
 An isolated optional pipeline that consumes corpus shards and clean audio. It
 does not access the application database. Failure or weak evaluation results
 must not affect the primary throughput demo.
+
+Operators run `prepare` → `train` → `compare` against `data/corpus` (real
+eligible speech) or a synthetic fixture with the same CLI. For small live
+corpora, `tune/run-real-demo.sh` applies demo-tuned `TUNE_EPOCHS` /
+`TUNE_GRAD_ACCUM` so the adapter visibly diverges from base on holdout without
+claiming generalization. Stage optional live-mic uses `tune/demo.py` plus
+`tune/capture_demo_audio.ps1`; neither path mutates the append-only corpus.
 
 ## Contracts
 

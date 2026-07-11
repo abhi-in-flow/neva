@@ -19,6 +19,19 @@
   margin-bottom: var(--s-5);
 }
 
+.admin-privacy-notice {
+  margin: calc(-1 * var(--s-3)) 0 var(--s-4);
+  padding: var(--s-2) var(--s-3);
+  border-left: 3px solid var(--tile-leaf);
+  background: var(--raised);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.admin-privacy-notice strong {
+  color: var(--ink);
+}
+
 .admin-brand {
   font-family: var(--font-display);
   font-size: var(--text-title);
@@ -190,6 +203,20 @@
   background: var(--bg);
 }
 
+.admin-card-image-button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.admin-card-image-button:focus-visible {
+  outline: 3px solid var(--marigold);
+  outline-offset: -3px;
+}
+
 .admin-card figcaption {
   padding: var(--s-2);
   font-size: var(--text-xs);
@@ -294,6 +321,98 @@
   height: 100%;
   background: var(--marigold);
   transition: width 0.35s ease;
+}
+
+.admin-cost-inline {
+  color: var(--marigold-deep);
+  white-space: nowrap;
+}
+
+.admin-cost-spotlight {
+  margin: var(--s-3) 0 var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border: 2px solid var(--marigold-deep);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--marigold) 18%, var(--surface));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--marigold) 12%, transparent);
+}
+
+.admin-cost-spotlight > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+  font-weight: 700;
+}
+
+.admin-cost-spotlight strong {
+  color: var(--marigold-deep);
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+}
+
+.admin-cost-spotlight p {
+  margin: var(--s-1) 0 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.admin-modal-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--s-4);
+  background: rgba(18, 14, 10, 0.88);
+}
+
+.admin-image-modal {
+  position: relative;
+  width: min(92vw, 820px);
+  max-height: 92dvh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: 0 1.5rem 5rem rgba(0, 0, 0, 0.45);
+}
+
+.admin-image-modal img {
+  display: block;
+  width: 100%;
+  max-height: 78dvh;
+  object-fit: contain;
+  background: var(--bg);
+}
+
+.admin-modal-close {
+  position: absolute;
+  z-index: 1;
+  top: var(--s-2);
+  right: var(--s-2);
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-lg);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.admin-image-modal-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+}
+
+.admin-image-modal-caption span {
+  color: var(--muted);
+  font-size: var(--text-sm);
 }
 
 .admin-card-skeleton .admin-skeleton-block {
