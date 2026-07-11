@@ -15,6 +15,8 @@ COPY frontend/web/package.json frontend/web/package-lock.json ./
 RUN npm ci
 
 COPY frontend/web/ ./
+COPY contracts/api_types.py /build/contracts/api_types.py
+COPY app/api/admin_tune.py /build/app/api/admin_tune.py
 RUN npm run test:contract && npm run build
 
 FROM ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-bookworm-slim AS python-deps

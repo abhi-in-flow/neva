@@ -45,6 +45,11 @@ class TuneConfig:
     min_free_disk_gib: float
     fuzzy_threshold: float
     compare_samples: int
+    compare_output_chars: int
+    native_language_chars: int
+    live_audio_min_seconds: float
+    live_audio_max_seconds: float
+    audio_tool_timeout_seconds: int
     dummy_rows: int
 
 
@@ -52,7 +57,10 @@ def load_config() -> TuneConfig:
     """Load tuning settings from safe environment values and validate them."""
     LOGGER.info("load_config called with TUNE_* environment overrides")
     config = TuneConfig(
-        model_id=os.getenv("TUNE_MODEL_ID", "unsloth/gemma-4-E4B-it"),
+        model_id=os.getenv(
+            "TUNE_MODEL_ID",
+            "unsloth/gemma-4-E4B-it-unsloth-bnb-4bit",
+        ),
         attention_implementation=os.getenv("TUNE_ATTN_IMPLEMENTATION", "sdpa"),
         holdout_fraction=float(os.getenv("TUNE_HOLDOUT_FRACTION", "0.20")),
         split_seed=int(os.getenv("TUNE_SPLIT_SEED", "20260711")),
@@ -94,6 +102,11 @@ def load_config() -> TuneConfig:
         min_free_disk_gib=float(os.getenv("TUNE_MIN_FREE_DISK_GIB", "40")),
         fuzzy_threshold=float(os.getenv("TUNE_FUZZY_THRESHOLD", "0.80")),
         compare_samples=int(os.getenv("TUNE_COMPARE_SAMPLES", "5")),
+        compare_output_chars=int(os.getenv("TUNE_COMPARE_OUTPUT_CHARS", "500")),
+        native_language_chars=int(os.getenv("TUNE_NATIVE_LANGUAGE_CHARS", "80")),
+        live_audio_min_seconds=float(os.getenv("TUNE_LIVE_AUDIO_MIN_SECONDS", "1")),
+        live_audio_max_seconds=float(os.getenv("TUNE_LIVE_AUDIO_MAX_SECONDS", "8")),
+        audio_tool_timeout_seconds=int(os.getenv("TUNE_AUDIO_TOOL_TIMEOUT_SECONDS", "30")),
         dummy_rows=int(os.getenv("TUNE_DUMMY_ROWS", "100")),
     )
     validate_config(config)
@@ -131,6 +144,11 @@ def validate_config(config: TuneConfig) -> None:
         "min_free_vram_gib": config.min_free_vram_gib,
         "min_free_disk_gib": config.min_free_disk_gib,
         "compare_samples": config.compare_samples,
+        "compare_output_chars": config.compare_output_chars,
+        "native_language_chars": config.native_language_chars,
+        "live_audio_min_seconds": config.live_audio_min_seconds,
+        "live_audio_max_seconds": config.live_audio_max_seconds,
+        "audio_tool_timeout_seconds": config.audio_tool_timeout_seconds,
         "dummy_rows": config.dummy_rows,
     }
     invalid = [name for name, value in positive_values.items() if value <= 0]
@@ -150,4 +168,6 @@ def validate_config(config: TuneConfig) -> None:
         raise ValueError("audio QLoRA target modules must not be empty")
     if not 0.0 <= config.fuzzy_threshold <= 1.0:
         raise ValueError("TUNE_FUZZY_THRESHOLD must be between 0 and 1")
+    if config.live_audio_min_seconds >= config.live_audio_max_seconds:
+        raise ValueError("live audio minimum duration must be below maximum duration")
 

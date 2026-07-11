@@ -42,6 +42,26 @@ export const TV_TICKER_ROTATE_MS = 5000;
 /** Admin Decks: poll generating deck detail for progressive card reveal. */
 export const ADMIN_DECK_POLL_MS = 1500;
 
+/** Admin Tune: refresh overview and the active supervisor job. */
+export const ADMIN_TUNE_POLL_MS = 2000;
+
+/** Admin Tune: minimum accepted live microphone recording length. */
+export const ADMIN_TUNE_RECORDING_MIN_MS = 1000;
+
+/** Admin Tune: maximum live microphone recording length before auto-stop. */
+export const ADMIN_TUNE_RECORDING_MAX_MS = 8000;
+
+/** Admin Tune: language choices used only when overview has no corpus languages. */
+export const ADMIN_TUNE_FALLBACK_LANGUAGES = Object.freeze([
+  { value: 'as-IN', label: 'Assamese' },
+  { value: 'bn-IN', label: 'Bengali' },
+  { value: 'hi-IN', label: 'Hindi' },
+  { value: 'en-IN', label: 'English (India)' },
+  { value: 'kn-IN', label: 'Kannada' },
+  { value: 'ta-IN', label: 'Tamil' },
+  { value: 'te-IN', label: 'Telugu' },
+]);
+
 /** Canonical phase names mirrored from contracts/api_types.py Phase enum. */
 export const PHASES = Object.freeze({
   ONBOARDING: 'onboarding',

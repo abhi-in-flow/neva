@@ -28,6 +28,7 @@ BYTES_PER_GIB = 1024**3
 MIB_PER_GIB = 1024
 MIN_TRANSFORMERS_VERSION = (5, 10, 0)
 CommandRunner = Callable[[Sequence[str]], subprocess.CompletedProcess[str]]
+TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
 
 
 @dataclass(frozen=True)
@@ -167,6 +168,16 @@ def check_hugging_face_auth(runner: CommandRunner = run_command) -> CheckResult:
         Authentication result containing only the account response.
     """
     LOGGER.info("check_hugging_face_auth called")
+    offline = (
+        os.getenv("HF_HUB_OFFLINE", "").strip().lower() in TRUTHY_ENV_VALUES
+        or os.getenv("TRANSFORMERS_OFFLINE", "").strip().lower() in TRUTHY_ENV_VALUES
+    )
+    if offline:
+        return CheckResult(
+            "hugging_face_auth",
+            True,
+            "offline mode; authentication is not required for cached model access",
+        )
     result = runner(["hf", "auth", "whoami"])
     detail = result.stdout.strip() if result.returncode == 0 else "not authenticated"
     return CheckResult("hugging_face_auth", result.returncode == 0, detail[:160])

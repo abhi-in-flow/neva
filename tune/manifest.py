@@ -266,6 +266,8 @@ def build_artifact_manifest(
             "duration_seconds": training_metrics["duration_seconds"],
             "peak_vram_gib": training_metrics["peak_vram_gib"],
             "max_steps": training_metrics["max_steps"],
+            "completed_steps": training_metrics.get("completed_steps"),
+            "final_loss": training_metrics.get("final_loss"),
         },
         "adapter_path": str(adapter_dir.resolve()),
         "adapter_sha256": sha256_directory(adapter_dir),

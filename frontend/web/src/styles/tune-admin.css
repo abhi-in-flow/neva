@@ -1,0 +1,422 @@
+/*
+ * Responsive styling for the protected Gemma Tune admin panel.
+ *
+ * The visual hierarchy makes the disposable one-step proof impossible to
+ * confuse with the verified inference adapter. It extends the existing admin
+ * token system and does not affect player or venue-TV surfaces.
+ */
+
+.tune-admin {
+  --tune-good: var(--tile-leaf);
+  --tune-live: var(--marigold);
+}
+
+.tune-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.tune-hero h2,
+.tune-proof h2 {
+  margin-bottom: var(--s-2);
+}
+
+.tune-eyebrow {
+  margin: 0 0 var(--s-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tune-supervisor {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+
+.tune-notice,
+.tune-fallback,
+.tune-readiness {
+  margin-bottom: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--marigold);
+  border-radius: var(--r-sm);
+  background: var(--raised);
+}
+
+.tune-fallback {
+  border-left-color: var(--failure-edge);
+  background: var(--failure-surface);
+}
+
+.tune-readiness {
+  border-left-color: var(--failure-edge);
+  background: var(--failure-surface);
+}
+
+.tune-view-tabs {
+  display: inline-flex;
+  gap: var(--s-1);
+  margin-bottom: var(--s-4);
+  padding: var(--s-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.tune-view-tabs button {
+  min-height: 2.75rem;
+  padding: var(--s-2) var(--s-4);
+  border: 0;
+  border-radius: calc(var(--r-sm) - 3px);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tune-view-tabs button[aria-selected='true'] {
+  background: var(--marigold);
+  color: var(--ink-warm);
+}
+
+.tune-view-tabs button:focus-visible,
+.tune-stepper li:focus-visible {
+  outline: 3px solid var(--marigold);
+  outline-offset: 2px;
+}
+
+.tune-proof-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+
+.tune-proof {
+  border-width: 2px;
+}
+
+.live-proof {
+  border-color: var(--marigold-deep);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--marigold) 13%, var(--surface)),
+      var(--surface) 65%
+    );
+}
+
+.verified-proof {
+  border-color: var(--failure-edge);
+}
+
+.verified-proof.ready {
+  border-color: var(--tile-leaf);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--tile-leaf) 18%, transparent);
+}
+
+.tune-unavailable {
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.tune-stepper {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--s-2);
+  margin: 0 0 var(--s-5);
+  padding: 0;
+  list-style: none;
+}
+
+.tune-stepper li {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  gap: var(--s-2);
+  align-items: center;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--raised);
+}
+
+.tune-stepper li > span {
+  display: grid;
+  flex: 0 0 1.75rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  border: 2px solid var(--line);
+  border-radius: var(--r-full);
+  font-weight: 900;
+}
+
+.tune-stepper li strong,
+.tune-stepper li small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.tune-stepper li small {
+  margin-top: var(--s-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-transform: capitalize;
+}
+
+.tune-stepper li.complete {
+  border-color: var(--tile-leaf);
+}
+
+.tune-stepper li.complete > span {
+  border-color: var(--tile-leaf);
+  background: var(--tile-leaf);
+}
+
+.tune-stepper li.active {
+  border-color: var(--marigold);
+  box-shadow: inset 0 0 0 1px var(--marigold);
+}
+
+.tune-stepper li.active > span {
+  border-color: var(--marigold);
+  animation: tune-pulse 1.4s ease-in-out infinite;
+}
+
+.tune-stepper li.failed {
+  border-color: var(--failure-edge);
+  background: var(--failure-surface);
+}
+
+.tune-stepper li.failed > span {
+  border-color: var(--failure-edge);
+}
+
+.tune-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: var(--s-3);
+}
+
+.tune-metric {
+  min-width: 0;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--raised);
+}
+
+.tune-metric > span,
+.tune-metric > small {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.tune-metric > strong {
+  display: block;
+  margin: var(--s-1) 0;
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  text-overflow: ellipsis;
+}
+
+.tune-events {
+  margin-bottom: var(--s-4);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.tune-events h3 {
+  margin: 0 0 var(--s-3);
+  font-size: var(--text-body);
+}
+
+.tune-events ol {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tune-events li {
+  padding: var(--s-2) var(--s-3);
+  border-left: 3px solid var(--line);
+  background: var(--bg);
+}
+
+.tune-events li > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--s-2);
+  font-size: var(--text-sm);
+}
+
+.tune-events time {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.tune-events p {
+  margin: var(--s-1) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.tune-comparison {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+}
+
+.tune-comparison article {
+  min-width: 0;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--raised);
+}
+
+.tune-comparison article.tuned {
+  border-color: var(--tile-leaf);
+}
+
+.tune-comparison span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.tune-comparison p {
+  margin: var(--s-2) 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.tune-audio {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin: var(--s-3) 0;
+  padding: var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--raised);
+}
+
+.tune-audio > span {
+  min-width: 10rem;
+  font-size: var(--text-sm);
+  font-weight: 750;
+}
+
+.tune-audio audio {
+  width: min(100%, 32rem);
+}
+
+.tune-privacy {
+  padding: var(--s-2) var(--s-3);
+  border-left: 3px solid var(--tile-leaf);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.tune-mic-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 2fr);
+  gap: var(--s-4);
+  align-items: end;
+  margin: var(--s-4) 0;
+}
+
+.tune-record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 3rem;
+}
+
+.tune-record-actions > span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.admin-btn.tune-stop {
+  background: var(--failure-edge);
+  color: var(--ink-warm);
+}
+
+.tune-live-result {
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line);
+}
+
+@keyframes tune-pulse {
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--marigold) 18%, transparent);
+  }
+}
+
+@media (max-width: 760px) {
+  .tune-hero,
+  .tune-supervisor {
+    display: block;
+  }
+
+  .tune-supervisor .admin-badge {
+    margin: var(--s-2) var(--s-2) 0 0;
+  }
+
+  .tune-proof-grid,
+  .tune-comparison,
+  .tune-mic-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .tune-stepper {
+    grid-template-columns: 1fr;
+  }
+
+  .tune-stepper li {
+    min-height: 3.5rem;
+  }
+
+  .tune-view-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .tune-audio {
+    display: block;
+  }
+
+  .tune-audio > span {
+    display: block;
+    margin-bottom: var(--s-2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tune-stepper li.active > span {
+    animation: none;
+  }
+}

@@ -20,8 +20,21 @@ uv run --project tune python -m tune.preflight
 ```
 
 The preflight requires WSL2, Python 3.12, CUDA Torch with bf16, an RTX 5090
-with at least 17 GiB free VRAM, ffmpeg/ffprobe, Hugging Face authentication,
-access to `unsloth/gemma-4-E4B-it`, and at least 40 GiB free cache space.
+with at least 17 GiB free VRAM, ffmpeg/ffprobe, Hugging Face authentication
+(or explicit offline mode with a cached checkpoint), access to
+`unsloth/gemma-4-E4B-it-unsloth-bnb-4bit`, and at least 40 GiB free cache
+space.
+
+## Model license
+
+The exact Unsloth checkpoint and its `google/gemma-4-E4B-it` base model declare
+[Apache License 2.0](https://ai.google.dev/gemma/docs/gemma_4_license). Google's
+[Gemma Terms of Use](https://ai.google.dev/gemma/terms) explicitly send Gemma 4
+users to that separate license; their appendix covers earlier Gemma families.
+The repository's AGPL-3.0 license covers project code and does not relicense
+Gemma weights, generated adapters, participant audio, or corpus data. Anyone
+redistributing weights or an adapter must preserve the Apache 2.0 license,
+notices, attribution, and modification notices.
 
 Transformers is deliberately overridden to `>=5.10.0`: older Gemma 4 audio
 processors can mismatch expanded audio tokens and encoder features. Training
@@ -98,9 +111,9 @@ preparation and choose artifact paths outside `data/`. The same
 
 When only a handful of records are training-eligible (for example 8 real →
 ~6 train / 2 holdout), the stock 3-epoch / grad-accum-8 profile finishes in too
-few optimizer steps for TUNED to visibly differ from BASE. Overfit the small
-validated set with more epochs for a truthful “the corpus teaches the model”
-stage signal—not a generalization claim.
+few optimizer steps to converge on the available examples. The demo profile
+raises epochs to demonstrate the corpus→adapter loop end-to-end on authentic
+speech. It is not a generalization claim.
 
 One-shot (repo root):
 
@@ -230,4 +243,31 @@ The stage run labels the short adapter separately, then switches explicitly to
 the pre-completed compatible adapter. Short-training failure is shown and the
 verified adapter continues. Failed microphone capture uses the supplied
 validated fallback; neither recording enters the corpus.
+
+## Protected web demo bridge
+
+The Docker API never imports this environment. Start the single host-GPU
+supervisor from the repository root and let `/admin` exchange only bounded
+files under `data/tune-demo`:
+
+```bash
+export TUNE_MODEL_ID="unsloth/gemma-4-E4B-it-unsloth-bnb-4bit"
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+export TUNE_DEMO_PREPARED_DIR="$prepared"
+export TUNE_DEMO_FULL_ADAPTER="$artifacts/adapter"
+export TUNE_DEMO_ARTIFACT_MANIFEST="$artifacts/artifact_manifest.json"
+export TUNE_DEMO_APPROVED_PREDICTIONS="$run_root/private/predictions.jsonl"
+# Comma-separated holdout IDs manually approved after qualitative review.
+export TUNE_DEMO_APPROVED_SAMPLE_IDS="<approved-utterance-id>"
+
+uv run python -m scripts.tune_demo_supervisor --dry-run
+uv run python -m scripts.tune_demo_supervisor
+```
+
+The supervisor accepts only one-step smoke training and temporary live-audio
+inference. Full training remains an operator CLI action. A technically valid
+full artifact stays visible in the UI, but inference remains disabled until at
+least one matching held-out comparison is explicitly approved. Microphone
+uploads must be 1–8 seconds and are removed after inference or the configured
+TTL; they never enter `train.jsonl` or the append-only corpus.
 

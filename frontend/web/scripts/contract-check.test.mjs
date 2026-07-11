@@ -12,6 +12,9 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  ADMIN_TUNE_POLL_MS,
+  ADMIN_TUNE_RECORDING_MAX_MS,
+  ADMIN_TUNE_RECORDING_MIN_MS,
   PAIR_REQUEST_QUEUE_RETRY_MS,
   PAIR_REQUEST_RETRY_BASE_MS,
   PAIR_REQUEST_RETRY_JITTER_MS,
@@ -253,4 +256,105 @@ test('admin Decks panel uses prompt form and centralized poll interval', () => {
   assert.match(source, /No personal information is requested/);
   assert.match(source, /Gemma 4 training and hosting run locally/);
   assert.match(source, /Advanced · paste concepts JSON/);
+});
+
+test('tune contract declares safe overview, artifacts, jobs, and comparisons', () => {
+  const source = readFileSync(
+    join(root, '..', '..', 'contracts', 'api_types.py'),
+    'utf8',
+  );
+  assert.match(source, /class AdminTuneOverview\(BaseModel\)/);
+  assert.match(source, /class AdminTuneArtifactMetadata\(BaseModel\)/);
+  assert.match(source, /class AdminTuneJobDetail\(AdminTuneJobSummary\)/);
+  assert.match(source, /full_adapter_ready: bool/);
+  assert.match(source, /readiness_reason: str \| None/);
+  assert.match(source, /heldout_comparisons: list\[AdminTuneHeldoutComparison\]/);
+  assert.match(source, /adapter_sha256:/);
+  assert.match(source, /failure_reason:/);
+});
+
+test('tune route source matches frontend endpoint and multipart field names', () => {
+  const source = readFileSync(
+    join(root, '..', '..', 'app', 'api', 'admin_tune.py'),
+    'utf8',
+  );
+  assert.match(source, /prefix="\/api\/admin\/tune"/);
+  assert.match(source, /@router\.get\("\/overview"/);
+  assert.match(source, /"\/jobs\/train-smoke"/);
+  assert.match(source, /"\/jobs\/infer-live"/);
+  assert.match(source, /audio: Annotated\[UploadFile, File/);
+  assert.match(source, /native_language: Annotated\[str, Form/);
+  assert.match(source, /"\/samples\/\{sample_id\}\/audio"/);
+  assert.match(source, /"\/jobs\/\{job_id\}"/);
+});
+
+test('admin API exposes authenticated tune JSON, multipart, and Blob calls', () => {
+  const source = readFileSync(join(root, 'src', 'lib', 'adminApi.js'), 'utf8');
+  assert.match(source, /export function adminJson/);
+  assert.match(source, /export function adminMultipart/);
+  assert.match(source, /export function adminBlob/);
+  assert.match(source, /X-Deck-Admin-Key/);
+  assert.match(source, /\/api\/admin\/tune\/overview/);
+  assert.match(source, /\/api\/admin\/tune\/jobs\/train-smoke/);
+  assert.match(source, /\/api\/admin\/tune\/jobs\/infer-live/);
+  assert.match(source, /\/api\/admin\/tune\/samples\/\$\{encodeURIComponent\(sampleId\)\}\/audio/);
+  assert.match(source, /responseType: 'blob'/);
+  assert.doesNotMatch(source, /[?&](?:key|admin_key)=/);
+});
+
+test('Tune panel separates proof from verified inference and cleans media', () => {
+  const source = readFileSync(join(root, 'src', 'admin', 'TunePanel.jsx'), 'utf8');
+  assert.match(source, /ADMIN_TUNE_POLL_MS/);
+  assert.match(source, /Live training proof — not used for quality/);
+  assert.match(source, /Verified full adapter — used for inference/);
+  assert.match(source, /Precomputed · approved held-out sample/);
+  assert.match(source, /Live result · actual model output/);
+  assert.match(source, /No ground truth is available for an unscripted live clip/);
+  assert.match(source, /liveInput/);
+  assert.match(source, /MediaRecorder/);
+  assert.match(source, /new FormData\(\)/);
+  assert.match(source, /form\.append\(\s*'audio'/);
+  assert.match(source, /form\.append\('native_language'/);
+  assert.match(source, /URL\.revokeObjectURL/);
+  assert.match(source, /getTracks\(\)\.forEach\(\(track\) => track\.stop\(\)\)/);
+  assert.match(source, /microphone audio is temporary/);
+  assert.match(source, /never enters training data/);
+  assert.doesNotMatch(source, /accuracy/i);
+  assert.doesNotMatch(source, /unsloth\/gemma/i);
+});
+
+test('Tune panel obeys authoritative readiness and exact comparison matching', () => {
+  const source = readFileSync(join(root, 'src', 'admin', 'TunePanel.jsx'), 'utf8');
+  assert.match(source, /const verifiedReady = overview\?\.full_adapter_ready === true/);
+  assert.match(source, /overview\?\.readiness_reason/);
+  assert.match(source, /Backend inference gate closed/);
+  assert.match(source, /Published full-artifact metrics/);
+  assert.match(source, /does not enable inference unless the backend explicitly publishes/);
+  assert.match(source, /candidate\.sample_id === sample\.sample_id/);
+  assert.match(source, /exactMatches\.length === 1/);
+  assert.match(source, /disabled=\{!verifiedReady\}/);
+  assert.match(source, /No approved qualitative comparison is published/);
+  assert.doesNotMatch(source, /verifiedAdapter\.available && verifiedAdapter\.compatible/);
+});
+
+test('Tune job polling stops before another request after terminal status', () => {
+  const source = readFileSync(join(root, 'src', 'admin', 'TunePanel.jsx'), 'utf8');
+  assert.match(
+    source,
+    /if \(TERMINAL_JOB_STATUSES\.has\(trackedStatus\)\) return undefined;\s+refreshJob\(trackedJobId\);/,
+  );
+  assert.match(source, /setInterval\(refreshOverview, ADMIN_TUNE_POLL_MS\)/);
+});
+
+test('Tune limits and polling are centralized and demo-bounded', () => {
+  assert.equal(ADMIN_TUNE_POLL_MS, 2000);
+  assert.equal(ADMIN_TUNE_RECORDING_MIN_MS, 1000);
+  assert.equal(ADMIN_TUNE_RECORDING_MAX_MS, 8000);
+});
+
+test('AdminApp delegates only the Tune tab to the focused panel', () => {
+  const source = readFileSync(join(root, 'src', 'admin', 'AdminApp.jsx'), 'utf8');
+  assert.match(source, /import TunePanel from '.\/TunePanel\.jsx'/);
+  assert.match(source, /return <TunePanel \/>/);
+  assert.doesNotMatch(source, /Tune runbook \(terminal only\)/);
 });

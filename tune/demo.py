@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -20,6 +19,8 @@ from typing import Sequence
 
 from tune.compare import compare_models, print_comparison
 from tune.config import load_config
+from tune.live import build_live_row as build_temporary_live_row
+from tune.live import normalize_live_audio
 from tune.manifest import (
     load_manifest,
     validate_artifact_compatibility,
@@ -86,32 +87,7 @@ def normalize_demo_audio(source: Path, destination: Path) -> None:
         source.name,
         destination.name,
     )
-    if not source.is_file():
-        raise RuntimeError("demo microphone recording does not exist")
-    if shutil.which("ffmpeg") is None:
-        raise RuntimeError("ffmpeg is unavailable for demo audio normalization")
-    result = subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-loglevel",
-            "error",
-            "-i",
-            str(source),
-            "-ar",
-            "16000",
-            "-ac",
-            "1",
-            "-c:a",
-            "flac",
-            str(destination),
-        ],
-        check=False,
-        capture_output=True,
-        timeout=30,
-    )
-    if result.returncode != 0:
-        raise RuntimeError("demo microphone audio normalization failed")
+    normalize_live_audio(source, destination, load_config())
 
 
 def build_live_row(audio_path: Path, native_language: str) -> dict[str, object]:
@@ -129,28 +105,7 @@ def build_live_row(audio_path: Path, native_language: str) -> dict[str, object]:
         audio_path.name,
         len(native_language),
     )
-    if not native_language.strip():
-        raise ValueError("live source language must not be empty")
-    instruction = f"Translate this speech from {native_language.strip()} into the common language."
-    return {
-        "utterance_id": "temporary-live-demo",
-        "native_lang_tag": native_language.strip(),
-        "target": "(live target not known)",
-        "input_mode": "audio",
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "audio", "audio": str(audio_path.resolve())},
-                    {"type": "text", "text": instruction},
-                ],
-            },
-            {
-                "role": "assistant",
-                "content": [{"type": "text", "text": "(live target not known)"}],
-            },
-        ],
-    }
+    return build_temporary_live_row(audio_path, native_language, load_config())
 
 
 def render_frozen_summary(dataset_manifest: dict[str, object]) -> None:

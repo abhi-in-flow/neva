@@ -1,9 +1,9 @@
 /**
  * Demo-grade operator admin surface (pathname /admin).
  *
- * Separate from the player App: renders Decks, Metrics, Traces, and a static
- * Tune runbook. All game rules remain server-owned; this UI only calls admin
- * and public metrics endpoints.
+ * Separate from the player App: renders Decks, Metrics, Traces, and the focused
+ * Tune panel. All game rules remain server-owned; this UI only calls admin and
+ * public metrics endpoints.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -21,6 +21,7 @@ import {
   EXAMPLE_PROMPTS,
   INDIAN_STATES,
 } from './deckPresets.js';
+import TunePanel from './TunePanel.jsx';
 import '../styles/admin.css';
 
 const TABS = [
@@ -898,36 +899,6 @@ function TracesPanel() {
         </table>
       </section>
     </>
-  );
-}
-
-function TunePanel() {
-  return (
-    <section className="admin-panel">
-      <h2>Tune runbook (terminal only)</h2>
-      <p className="admin-muted">
-        Fine-tuning stays isolated under <code>tune/</code>. No browser inference.
-        Use a pre-baked adapter; live mic only after preflight.
-      </p>
-      <pre className="admin-pre">{`# Rehearsal (no GPU)
-uv run python -m tune.demo \\
-  --prepared <prepared_dir> \\
-  --live-run-output <tmp/live-run> \\
-  --full-adapter <verified/adapter> \\
-  --dry-run
-
-# Live stage sequence
-uv run python -m tune.preflight
-uv run python -m tune.demo \\
-  --prepared <prepared_dir> \\
-  --live-run-output <tmp/live-run> \\
-  --full-adapter <verified/adapter> \\
-  --fallback-audio <validated.flac> \\
-  --native-language as-IN
-
-SHOW Tier 2 only if preflight PASS and compare output looks coherent.
-CUT Tier 2 on GPU/preflight failure — Tier 1 metrics still close the demo.`}</pre>
-    </section>
   );
 }
 

@@ -161,12 +161,18 @@ the surface provides:
 3. **Traces** — protected reads of redacted `api_calls`, worker heartbeats,
    and gauntlet jobs. Prompt text, audio, and secrets are never returned to
    the browser.
-4. **Tune** — static terminal runbook only; Gemma train/compare stays in
-   `tune/demo.py` and never touches Postgres.
+4. **Tune** — protected training-proof progress, safe artifact metrics,
+   approved held-out comparisons, and optional temporary microphone inference.
+   The Docker API exchanges bounded request/status files with a host-only GPU
+   supervisor; Gemma execution stays in the isolated `tune/` environment and
+   never touches Postgres. Live comparison sends the same normalized FLAC and
+   best-effort concept instruction to both base and adapter models, and fails
+   closed if either processor does not emit audio feature tensors.
 
 The surface carries a short privacy notice: no personal information is
-requested, submitted audio is retained, and Gemma 4 training plus demo hosting
-run locally on the operator machine.
+requested, submitted game audio is retained, and Gemma 4 training plus demo
+hosting run locally on the operator machine. Tune-tab microphone recordings
+are temporary inference inputs and never enter the training corpus.
 
 Per-utterance WebM→FLAC→gate walkthroughs remain on the operator CLI
 (`python -m scripts.pipeline_view`) so participant audio stays off the web UI.
@@ -195,6 +201,16 @@ corpora, `tune/run-real-demo.sh` applies demo-tuned `TUNE_EPOCHS` /
 `TUNE_GRAD_ACCUM` so the adapter visibly diverges from base on holdout without
 claiming generalization. Stage optional live-mic uses `tune/demo.py` plus
 `tune/capture_demo_audio.ps1`; neither path mutates the append-only corpus.
+
+The optional web bridge does not load ML libraries in FastAPI. A single
+host-run `scripts.tune_demo_supervisor` claims atomic requests beneath
+`data/tune-demo`, invokes fixed `uv run --project tune` commands without shell
+interpolation, and publishes redacted status/manifests back to the same runtime
+tree. Only one GPU job may run at once. UI-triggered training is a one-step
+smoke proof and is never presented as the verified adapter used for inference.
+Full training remains an explicit operator command. Tuned inference is gated
+on a compatible `profile=full` artifact and an operator-approved qualitative
+comparison set; weak results remain hidden.
 
 ## Contracts
 

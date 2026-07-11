@@ -10,7 +10,17 @@ import logging
 
 from fastapi import FastAPI
 
-from app.api import admin_decks, admin_ops, join, leaderboard, metrics, pair, state, turn
+from app.api import (
+    admin_decks,
+    admin_ops,
+    admin_tune,
+    join,
+    leaderboard,
+    metrics,
+    pair,
+    state,
+    turn,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +36,8 @@ def include_game_routers(app: FastAPI) -> None:
 
     Side effects:
         Registers join, pair, state, turn, leaderboard, metrics, protected
-        deck-administration, and admin observability routes.
+        deck-administration, admin observability, and protected tune-demo
+        filesystem bridge routes.
         Does not modify lifespan, static mounts, or health probes.
     """
     logger.info("include_game_routers called")
@@ -38,4 +49,5 @@ def include_game_routers(app: FastAPI) -> None:
     app.include_router(metrics.router)
     app.include_router(admin_decks.router)
     app.include_router(admin_ops.router)
-    logger.info("include_game_routers completed router_count=8")
+    app.include_router(admin_tune.router)
+    logger.info("include_game_routers completed router_count=9")

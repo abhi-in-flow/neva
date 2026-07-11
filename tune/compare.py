@@ -11,10 +11,13 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import tempfile
 from pathlib import Path
 from typing import Any
 
 from tune.config import TuneConfig, load_config
+from tune.events import JsonlEventWriter, bounded_text, write_result
+from tune.live import build_live_row, normalize_live_audio, probe_live_audio_duration
 from tune.manifest import (
     load_manifest,
     validate_artifact_compatibility,
@@ -23,6 +26,7 @@ from tune.manifest import (
 from tune.train import read_prepared_rows, validate_runtime_intent
 
 LOGGER = logging.getLogger(__name__)
+INFERENCE_AUDIO_KEYS = frozenset({"input_features", "input_features_mask"})
 
 
 def select_samples(rows: list[dict[str, Any]], count: int) -> list[dict[str, Any]]:
@@ -45,6 +49,24 @@ def load_inference_stack() -> tuple[Any, Any]:
             "Real comparison requires the isolated CUDA Torch and Unsloth environment."
         ) from exc
     return torch, FastVisionModel
+
+
+def verify_inference_audio_inputs(inputs: Any) -> None:
+    """Fail unless the processor encoded attached audio for model inference.
+
+    Args:
+        inputs: Processor batch mapping produced from one audio-first prompt.
+
+    Raises:
+        RuntimeError: If required audio feature tensors are absent.
+    """
+    keys = set(inputs.keys())
+    LOGGER.info("verify_inference_audio_inputs called keys=%s", sorted(keys))
+    missing = INFERENCE_AUDIO_KEYS.difference(keys)
+    if missing:
+        raise RuntimeError(
+            "processor did not encode attached audio; missing " + ", ".join(sorted(missing))
+        )
 
 
 def generate_output(
@@ -86,6 +108,7 @@ def generate_output(
                 }
             },
         )
+        verify_inference_audio_inputs(inputs)
         device = next(model.parameters()).device
         inputs = inputs.to(device)
         generated = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
@@ -110,6 +133,8 @@ def compare_models(
     rows: list[dict[str, Any]],
     adapter: Path,
     config: TuneConfig,
+    *,
+    event_writer: JsonlEventWriter | None = None,
 ) -> list[dict[str, str]]:
     """Generate base and tuned outputs for the selected holdout rows."""
     LOGGER.info(
@@ -120,6 +145,8 @@ def compare_models(
     )
     if not adapter.is_dir():
         raise ValueError(f"adapter directory does not exist: {adapter}")
+    events = event_writer or JsonlEventWriter(None)
+    events.emit("loading_base", 0.2, "Loading the configured base model")
     torch, FastVisionModel = load_inference_stack()
     base_model, base_processor = FastVisionModel.from_pretrained(
         model_name=config.model_id,
@@ -130,6 +157,7 @@ def compare_models(
     for_inference = getattr(FastVisionModel, "for_inference", None)
     if callable(for_inference):
         for_inference(base_model)
+    events.emit("base_inference", 0.35, "Generating bounded base-model output")
     base_outputs = [
         generate_output(
             base_model,
@@ -142,6 +170,7 @@ def compare_models(
     ]
     del base_model
     torch.cuda.empty_cache()
+    events.emit("loading_adapter", 0.55, "Loading the verified tuned adapter")
     tuned_model, tuned_processor = FastVisionModel.from_pretrained(
         model_name=str(adapter),
         max_seq_length=config.max_sequence_length,
@@ -150,6 +179,7 @@ def compare_models(
     )
     if callable(for_inference):
         for_inference(tuned_model)
+    events.emit("tuned_inference", 0.75, "Generating bounded tuned-model output")
     tuned_outputs = [
         generate_output(
             tuned_model,
@@ -163,10 +193,10 @@ def compare_models(
     return [
         {
             "utterance_id": row["utterance_id"],
-            "target": row["target"],
+            "target": bounded_text(row["target"], config.compare_output_chars),
             "audio_path": row["messages"][0]["content"][0]["audio"],
-            "base": base,
-            "tuned": tuned,
+            "base": bounded_text(base, config.compare_output_chars),
+            "tuned": bounded_text(tuned, config.compare_output_chars),
         }
         for row, base, tuned in zip(rows, base_outputs, tuned_outputs, strict=True)
     ]
@@ -212,6 +242,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Comparison count up to configured maximum; defaults to five.",
     )
     parser.add_argument("--predictions", type=Path)
+    parser.add_argument(
+        "--live-audio",
+        type=Path,
+        help="One temporary recording for inference only; never added to the corpus.",
+    )
+    parser.add_argument("--native-language", help="Declared language for --live-audio.")
+    parser.add_argument("--events", type=Path, help="Optional safe progress JSONL destination.")
+    parser.add_argument("--result", type=Path, help="Optional structured result JSON destination.")
     parser.add_argument("--dry-run", action="store_true")
     return parser
 
@@ -223,13 +261,17 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if not args.dry_run and args.adapter is None:
         raise SystemExit("--adapter is required unless --dry-run is used")
+    if (args.live_audio is None) != (args.native_language is None):
+        raise SystemExit("--live-audio and --native-language must be provided together")
     config = load_config()
+    events = JsonlEventWriter(args.events)
+    events.emit("validating", 0.05, "Validating comparison inputs")
     rows = read_prepared_rows(args.holdout)
     mode = validate_runtime_intent(rows, config)
     sample_count = args.samples if args.samples is not None else config.compare_samples
     if sample_count <= 0 or sample_count > config.compare_samples:
         raise SystemExit(f"--samples must be between 1 and {config.compare_samples}")
-    selected = select_samples(rows, sample_count)
+    selected = select_samples(rows, sample_count) if args.live_audio is None else []
     dataset_manifest_path = args.dataset_manifest or args.holdout.parent / "dataset_manifest.json"
     dataset_manifest = load_manifest(dataset_manifest_path)
     validate_dataset_files(
@@ -238,8 +280,9 @@ def main(argv: list[str] | None = None) -> int:
         args.holdout,
     )
     if args.dry_run:
+        dry_count = 1 if args.live_audio is not None else len(selected)
         print(
-            f"DRY RUN OK: compare_samples={len(selected)} mode={mode} "
+            f"DRY RUN OK: compare_samples={dry_count} mode={mode} "
             f"model={config.model_id}; no weights loaded"
         )
         return 0
@@ -248,10 +291,61 @@ def main(argv: list[str] | None = None) -> int:
     )
     artifact_manifest = load_manifest(artifact_manifest_path)
     validate_artifact_compatibility(dataset_manifest, artifact_manifest, args.adapter)
-    results = compare_models(selected, args.adapter, config)
+    if args.live_audio is not None:
+        with tempfile.TemporaryDirectory(prefix="gemma-live-compare-") as temporary:
+            normalized = Path(temporary) / "live.flac"
+            events.emit("normalizing_audio", 0.1, "Normalizing temporary live audio")
+            normalize_live_audio(args.live_audio, normalized, config)
+            duration_seconds = probe_live_audio_duration(normalized, config)
+            events.emit(
+                "validated_audio",
+                0.15,
+                "Validated temporary live audio duration",
+                duration_seconds=round(duration_seconds, 3),
+            )
+            selected = [build_live_row(normalized, args.native_language, config)]
+            results = compare_models(
+                selected,
+                args.adapter,
+                config,
+                event_writer=events,
+            )
+    else:
+        results = compare_models(
+            selected,
+            args.adapter,
+            config,
+            event_writer=events,
+        )
     print_comparison(results)
     if args.predictions is not None:
         write_predictions(args.predictions, results)
+    public_results = [
+        {
+            "utterance_id": result["utterance_id"],
+            "target": result["target"],
+            "base": result["base"],
+            "tuned": result["tuned"],
+        }
+        for result in results
+    ]
+    result_payload: dict[str, Any] = {
+        "status": "completed",
+        "kind": "infer_live" if args.live_audio is not None else "compare",
+        "model_id": config.model_id,
+        "sample_count": len(public_results),
+        "predictions": public_results,
+    }
+    if args.live_audio is not None:
+        result_payload["base_output"] = public_results[0]["base"]
+        result_payload["tuned_output"] = public_results[0]["tuned"]
+    write_result(args.result, result_payload)
+    events.emit(
+        "completed",
+        1.0,
+        "Comparison completed",
+        sample_count=len(public_results),
+    )
     return 0
 
 

@@ -13,7 +13,12 @@ from typing import Sequence
 from unittest.mock import patch
 
 from tune.config import load_config
-from tune.preflight import check_disk, check_gpu, check_model_access
+from tune.preflight import (
+    check_disk,
+    check_gpu,
+    check_hugging_face_auth,
+    check_model_access,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +48,7 @@ def test_config_separates_smoke_controls_and_uses_instruction_model() -> None:
     LOGGER.info("test_config_separates_smoke_controls_and_uses_instruction_model called")
     config = load_config()
 
-    assert config.model_id == "unsloth/gemma-4-E4B-it"
+    assert config.model_id == "unsloth/gemma-4-E4B-it-unsloth-bnb-4bit"
     assert config.smoke_max_steps == 1
     assert config.epochs == 3
     assert config.min_free_vram_gib == 17
@@ -92,6 +97,23 @@ def test_model_access_uses_metadata_only_dry_run() -> None:
 
     assert result.passed is True
     assert commands == [["hf", "download", config.model_id, "config.json", "--dry-run"]]
+
+
+def test_offline_cached_mode_does_not_require_hugging_face_auth() -> None:
+    """Treat authentication as satisfied when the operator explicitly runs offline."""
+    LOGGER.info("test_offline_cached_mode_does_not_require_hugging_face_auth called")
+
+    with patch.dict(
+        "os.environ",
+        {"HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"},
+        clear=False,
+    ):
+        result = check_hugging_face_auth(
+            lambda command: completed(command, 1, "must not be called")
+        )
+
+    assert result.passed is True
+    assert "offline mode" in result.detail
 
 
 def test_disk_check_uses_existing_parent_for_new_cache(tmp_path: Path) -> None:

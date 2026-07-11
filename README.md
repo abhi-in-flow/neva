@@ -1,17 +1,24 @@
 # Neva
 
-Turn a multiplayer charades game into a zero-touch, validated dialect speech-data pipeline.
+Turn a multiplayer charades game into a pipeline for validated speech→concept
+pairs.
 
-**Neva** turns a charades game into a zero-touch dialect speech pipeline: strangers
-with different mother tongues describe Nano Banana 2 Lite–generated regional
-picture decks, partners validate meaning in a shared language, and every
-accepted round is cleaned through automated quality, contamination, and
-de-duplication gates before it enters an append-only training corpus for
-fine-tuning—proving that high-throughput creative generation isn’t a prompt box,
-it’s the engine that keeps play fresh while India-scale language data collects
-itself.
+**Neva** combines each audio utterance with the deck-owned concept label and a
+human partner's confirmation that the meaning landed—no transcript and no
+separate annotation pass. Strangers with different mother tongues describe
+Nano Banana 2 Lite–generated regional picture decks, partners guess the concept
+in a shared language, and automated quality gates clean the accepted audio
+before eligible records enter an append-only local training corpus.
 
-![How we use Gemini and Gemma — gameplay to cleaned corpus to on-device dialect intelligence](docs-assets/gemini-gemma-use.png)
+**Validated has two independent meanings:** meaning is validated when a partner
+with a different mother tongue correctly guesses the concept; audio is validated
+by automated speech-quality, contamination, and de-duplication gates.
+
+High-throughput creative generation is load-bearing: fresh regional decks keep
+play useful while **play produces the corpus. No annotator, no transcription
+pass.**
+
+![How we use Gemini and Gemma — gameplay to validated speech-concept pairs to local inference](docs-assets/gemini-gemma-use.png)
 
 ## Hackathon tracks
 
@@ -34,7 +41,7 @@ for verification, speech triage, and structured game/ops calls.
 
 **Focus technology:** Gemma On-Device (Gemma 4 E2B & E4B)
 
-Validated speech→label pairs from the game become a same-day local corpus for
+Validated speech→concept pairs from the game become a same-day local corpus for
 an optional QLoRA fine-tune under `tune/` (isolated from Postgres). The demo
 claim is the local data loop feeding Gemma—not cloud chat with a local skin.
 Tier 2 (train/compare) is cut-first if venue GPU/time does not allow.
@@ -119,8 +126,33 @@ Generation finishes in `ready`; only explicit activation makes a deck `live`.
 Published image files use the real encoding extension (`.jpg` / `.png` / `.webp`)
 from Gemini’s bytes.
 
-Operator UI: paste the admin key at `/admin` for decks, metrics, and redacted
-traces. Per-utterance stage walks stay on the CLI:
+## Primary-track evidence: NB2 Lite deck factory
+
+The primary-track path is programmatic and end-to-end: operator theme → Gemini
+concepts → up to four parallel NB2 Lite image calls → Gemini verification and
+retry → labels/decoys → review → explicit activation in live play.
+
+As of 11 July 2026, four successful live runs recorded **30 accepted cards from
+32 NB2 attempts**, with **2 verifier rejects**, **404.047 seconds** of summed
+wall time, and **$1.0916 estimated generation cost**. Derived from those stored
+run metrics:
+
+- **4.46 accepted images/minute** across the four runs;
+- **$0.0364 estimated cost/accepted image**, including retries and recorded
+  Gemini Flash calls; and
+- **6.25% verifier reject rate** (2/32 attempts).
+
+The latest six-card run reached **9.85 accepted images/minute**, **$0.0342
+estimated cost/accepted image**, and 0/6 rejects. Costs use the configured
+pricing assumptions of $0.0336 per NB2 attempt and $0.0004 per Flash JSON call;
+they are estimates, not a cloud-billing reconciliation. These are low-N local
+demo observations, not benchmark or SLA claims.
+
+Operator UI: paste the admin key at `/admin` for decks, metrics, redacted
+traces, and the local Gemma training/inference demo. The Tune tab distinguishes
+the live one-step training proof from the separately verified full adapter;
+weak qualitative results keep inference disabled. Per-utterance stage walks
+stay on the CLI:
 
 ```sh
 uv run python -m scripts.pipeline_view --fixture
@@ -138,8 +170,9 @@ The cleaning gauntlet writes **training-eligible** golden records into
 Nothing in game code changes for a “real” run: the same three steps
 (`prepare` → `train` → `compare`) swap the synthetic fixture for `data/corpus`.
 With a small eligible set (for example 8 real records → ~6 train / 2 holdout),
-raise epochs so the adapter clearly diverges from base on stage—this
-demonstrates the learning loop on genuine dialect speech, not generalization.
+epochs are raised so the adapter converges on the available examples. This
+demonstrates the corpus→adapter loop end-to-end on authentic speech. It is not a
+generalization claim.
 
 ### One-shot script
 
@@ -192,6 +225,40 @@ verified `$artifacts/adapter`. Full smoke/fixture docs: [`tune/README.md`](tune/
 **Judge framing:** a handful of real rows proves corpus → adapter on authentic
 speech; grow the append-only corpus and re-freeze for any generalization claim.
 
+## What this is not
+
+- **Not an ASR or transcription corpus.** Records are speech→concept pairs; the
+  common-language text is the system-owned deck label, not a transcript.
+- **Not a generalization claim.** The demonstrated adapter is small-N and
+  converged on the available examples; base-versus-tuned output is qualitative.
+- **Not a large corpus today.** The demonstrated full run uses 8 eligible
+  records (6 train / 2 holdout). The append-only, gated pipeline is what scales,
+  not the current row count.
+
+## Data, consent, and retention
+
+The game captures a chosen game nickname, self-declared languages, the voice
+recording, the deck concept, and the partner's game result. Accepted uploads are
+stored locally as raw WebM; the worker also creates clean FLAC and quality /
+validation metadata. Only training-eligible records are appended to local
+`data/corpus/*.jsonl`. Inline-rejected uploads are deleted, but the current
+build has no general retention deadline or post-upload deletion workflow.
+
+The corpus and audio under `data/` are runtime-only and gitignored. This
+repository publishes the **code** under AGPL-3.0; it does not automatically
+publish, upload, or apply the AGPL to participant audio or corpus shards.
+
+**Current public-venue blocker:** the UI requests browser microphone permission
+and says recording begins only while the talk button is held, but it does not
+yet present an explicit data-use/retention consent notice, consent checkbox, or
+post-upload withdrawal/opt-out flow. Declining microphone permission or leaving
+before recording prevents collection; after upload there is no player-facing
+opt-out. Treat voice and language metadata as personal data: add an appropriate
+notice, explicit consent, operator contact, retention period, and
+withdrawal/deletion process before collecting from public participants. For an
+Indian public-venue deployment, this is a DPDP-readiness blocker, not paperwork
+to defer until after collection.
+
 ## Repository layout
 
 ```text
@@ -217,5 +284,16 @@ modules (`deckgen/prompts.py`, `worker/prompts.py`).
 
 ## License
 
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE)
-(AGPL-3.0).
+This project's code is licensed under the
+[GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0). Runtime audio,
+corpus data, third-party model weights, and generated adapters are not relicensed
+by that statement.
+
+The exact `google/gemma-4-E4B-it` base model and the
+`unsloth/gemma-4-E4B-it-unsloth-bnb-4bit` checkpoint both declare
+[Apache License 2.0](https://ai.google.dev/gemma/docs/gemma_4_license). Google's
+[Gemma Terms of Use](https://ai.google.dev/gemma/terms) explicitly direct Gemma
+4 users to that separate license; the custom terms listed there cover earlier
+Gemma families, not Gemma 4. Redistribution of Gemma 4 weights or a derived
+adapter must still satisfy Apache 2.0's license, notice, attribution, and
+modified-file requirements.

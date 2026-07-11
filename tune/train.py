@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from tune.config import TuneConfig, load_config
+from tune.events import JsonlEventWriter, write_result
 from tune.manifest import (
     build_artifact_manifest,
     load_manifest,
@@ -200,6 +201,7 @@ def run_training(
     *,
     max_steps: int | None = None,
     resume_from_checkpoint: Path | None = None,
+    event_writer: JsonlEventWriter | None = None,
 ) -> dict[str, Any]:
     """Train and save an E4B audio QLoRA adapter after collator verification.
 
@@ -227,10 +229,13 @@ def run_training(
         raise RuntimeError("this Gemma 4 run is audio-only; text fallback requires a separate go/no-go")
     if max_steps is not None and max_steps <= 0:
         raise ValueError("max_steps must be positive when provided")
+    events = event_writer or JsonlEventWriter(None)
+    events.emit("loading_stack", 0.15, "Loading isolated training dependencies")
     Dataset, SFTConfig, SFTTrainer, FastVisionModel, Collator, torch = load_training_stack()
     started = time.monotonic()
     try:
         torch.cuda.reset_peak_memory_stats()
+        events.emit("loading_model", 0.25, "Loading the configured Gemma base model")
         model, processor = FastVisionModel.from_pretrained(
             model_name=config.model_id,
             max_seq_length=config.max_sequence_length,
@@ -260,6 +265,7 @@ def run_training(
             for_training(model)
         collator = Collator(model, processor, max_seq_length=config.max_sequence_length)
         verify_audio_batch(collator([rows[0]]), torch)
+        events.emit("verified_audio", 0.4, "Verified audio features in the first batch")
         training_args = SFTConfig(
             output_dir=str(output / "checkpoints"),
             per_device_train_batch_size=config.batch_size,
@@ -291,12 +297,14 @@ def run_training(
             data_collator=collator,
             args=training_args,
         )
+        events.emit("training", 0.5, "Running the bounded QLoRA training profile")
         train_result = trainer.train(
             resume_from_checkpoint=str(resume_from_checkpoint)
             if resume_from_checkpoint is not None
             else None
         )
         adapter_dir = output / "adapter"
+        events.emit("saving_adapter", 0.85, "Saving the completed adapter")
         model.save_pretrained(str(adapter_dir))
         processor.save_pretrained(str(adapter_dir))
         duration_seconds = time.monotonic() - started
@@ -309,6 +317,8 @@ def run_training(
             "max_steps": max_steps,
             "duration_seconds": round(duration_seconds, 3),
             "peak_vram_gib": round(torch.cuda.max_memory_allocated() / (1024**3), 3),
+            "completed_steps": int(trainer.state.global_step),
+            "final_loss": train_result.metrics.get("train_loss"),
             "adapter_path": str(adapter_dir.resolve()),
             "trainer_metrics": dict(train_result.metrics),
             "config": asdict(config),
@@ -340,6 +350,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Explicit optimizer-step cap; use 1 for the isolated GPU smoke run.",
     )
     parser.add_argument("--resume-from-checkpoint", type=Path)
+    parser.add_argument("--events", type=Path, help="Optional safe progress JSONL destination.")
+    parser.add_argument("--result", type=Path, help="Optional structured result JSON destination.")
     parser.add_argument("--dry-run", action="store_true")
     return parser
 
@@ -352,6 +364,8 @@ def main(argv: list[str] | None = None) -> int:
     if not args.dry_run and args.output is None:
         raise SystemExit("--output is required unless --dry-run is used")
     config = load_config()
+    events = JsonlEventWriter(args.events)
+    events.emit("validating", 0.05, "Validating prepared training inputs")
     rows = read_prepared_rows(args.train)
     mode = validate_runtime_intent(rows, config)
     dataset_manifest_path = args.dataset_manifest or args.train.parent / "dataset_manifest.json"
@@ -381,6 +395,7 @@ def main(argv: list[str] | None = None) -> int:
         config,
         max_steps=args.max_steps,
         resume_from_checkpoint=args.resume_from_checkpoint,
+        event_writer=events,
     )
     artifact_manifest = build_artifact_manifest(
         dataset_manifest,
@@ -390,6 +405,45 @@ def main(argv: list[str] | None = None) -> int:
         config,
     )
     write_manifest(output / "artifact_manifest.json", artifact_manifest)
+    training_proof = {
+        "available": True,
+        "compatible": True,
+        "status": "completed",
+        "profile": metrics["profile"],
+        "model_id": config.model_id,
+        "input_mode": mode,
+        "sample_counts": dataset_manifest["sample_counts"],
+        "language_counts": dataset_manifest["language_counts"],
+        "lora_rank": config.lora_rank,
+        "completed_steps": metrics.get("completed_steps"),
+        "final_loss": metrics.get("final_loss"),
+        "duration_seconds": metrics["duration_seconds"],
+        "peak_vram_gib": metrics["peak_vram_gib"],
+        "source_corpus_sha256": dataset_manifest["source_corpus_sha256"],
+        "adapter_sha256": artifact_manifest["adapter_sha256"],
+        "created_at": artifact_manifest["created_at"],
+    }
+    result = {
+        "status": "completed",
+        "kind": "train",
+        "profile": metrics["profile"],
+        "model_id": config.model_id,
+        "sample_count": len(rows),
+        "max_steps": args.max_steps,
+        "duration_seconds": metrics["duration_seconds"],
+        "peak_vram_gib": metrics["peak_vram_gib"],
+        "adapter_name": "adapter",
+        "artifact_manifest_name": "artifact_manifest.json",
+        "training_proof": training_proof,
+    }
+    write_result(args.result, result)
+    events.emit(
+        "completed",
+        1.0,
+        "Training and artifact manifest completed",
+        profile=metrics["profile"],
+        sample_count=len(rows),
+    )
     print(f"TRAINING COMPLETED: adapter={args.output / 'adapter'}")
     return 0
 
