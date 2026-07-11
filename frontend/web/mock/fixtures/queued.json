@@ -1,0 +1,13 @@
+{
+  "state_version": 2,
+  "phase": "queued",
+  "player": { "nickname": "Chai Champion", "score": 0, "rank": 12, "rounds_played": 0, "rounds_cap": 20 },
+  "pair": null, "turn": null, "last_result": null,
+  "leaderboard_top": [
+    { "nickname": "Bijli Rani", "score": 320 },
+    { "nickname": "Momo Master", "score": 290 },
+    { "nickname": "Toofan Tez", "score": 250 },
+    { "nickname": "Jalebi Jet", "score": 220 },
+    { "nickname": "Pataka Boss", "score": 180 }
+  ]
+}

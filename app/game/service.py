@@ -355,14 +355,35 @@ class GameService:
         )
 
     async def metrics(self) -> MetricsResponse:
-        """Return venue throughput metrics.
+        """Return canonical venue throughput metrics.
+
+        Field definitions (frozen ``MetricsResponse`` shape):
+
+        - ``validated_pairs``: turns with ``outcome = validated``.
+        - ``training_eligible_pairs``: ``records.training_eligible`` true.
+        - ``languages`` / ``language_count``: normalized speaker native langs
+          on validated turns only. ``common_langs`` and unplayed registrations
+          are excluded by query source; no native-language tag is excluded
+          because it may also be usable as a bridge language.
+        - ``gauntlet_pass_rate``: eligible records ÷ packaged validated
+          records; null when denominator is zero.
+        - ``deck_images_per_minute`` / ``deck_cost_per_image_usd``: from the
+          latest live deck ``generation_metrics``; null without evidence.
+        - ``cost_per_validated_sample_usd``: latest live deck
+          ``generation_metrics.total_cost_usd`` plus successful
+          ``gauntlet_triage`` API costs, divided by validated pairs. It remains
+          null until every validated turn is packaged and has one successful
+          priced triage call; unrelated API operations are excluded.
 
         Returns:
-            Contract ``MetricsResponse``.
+            Contract ``MetricsResponse`` mapped from the store snapshot.
+
+        Side effects:
+            Delegates to the store; logs safe aggregate metadata only.
         """
         logger.info("GameService.metrics called")
         snap = await self.store.metrics()
-        return MetricsResponse(
+        response = MetricsResponse(
             validated_pairs=snap.validated_pairs,
             training_eligible_pairs=snap.training_eligible_pairs,
             language_count=snap.language_count,
@@ -372,6 +393,20 @@ class GameService:
             deck_images_per_minute=snap.deck_images_per_minute,
             deck_cost_per_image_usd=snap.deck_cost_per_image_usd,
         )
+        logger.info(
+            "GameService.metrics completed validated_pairs=%s "
+            "training_eligible_pairs=%s language_count=%s "
+            "gauntlet_pass_rate_present=%s cost_present=%s "
+            "deck_metrics_present=%s",
+            response.validated_pairs,
+            response.training_eligible_pairs,
+            response.language_count,
+            response.gauntlet_pass_rate is not None,
+            response.cost_per_validated_sample_usd is not None,
+            response.deck_images_per_minute is not None
+            or response.deck_cost_per_image_usd is not None,
+        )
+        return response
 
     async def _after_scored(self, turn: TurnRecord) -> None:
         """Enqueue package when possible and advance to the next turn.

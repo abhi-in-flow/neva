@@ -9,7 +9,7 @@ work to coding or exploration subagents and does not duplicate their work.
 
 | Wave | Included phases | Outcome |
 |---|---|---|
-| [Wave 0 — Foundation](wave-0-foundation/README.md) | Phase 0 | Frozen contracts and a verified Windows runtime |
+| [Wave 0 — Foundation](wave-0-foundation/README.md) | Phase 0 | Frozen contracts and a verified WSL2/Linux runtime |
 | [Wave 1 — Parallel Build](wave-1-parallel-build/README.md) | Phases 1–5 | Game, gauntlet, deck engine, tuning harness, and frontend built in parallel |
 | [Wave 2 — Integration](wave-2-integration/README.md) | Phase 6 | Components integrated, load-tested, and operationally recoverable |
 | [Wave 3 — Launch and Demo](wave-3-launch-demo/README.md) | Launch, evidence, submission | Public pilot and defensible judging package |

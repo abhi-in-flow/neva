@@ -1,0 +1,304 @@
+/* Speaker flow — brief 03. The mic in your fist. */
+
+.speaker-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 480px;
+  width: 100%;
+  margin-inline: auto;
+  padding: var(--s-3) var(--s-4) max(var(--s-4), env(safe-area-inset-bottom));
+  gap: var(--s-3);
+}
+
+/* -- persistent HUD (shared) --------------------------------------- */
+
+.hud {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: var(--s-1) var(--s-1) 0;
+}
+
+.hud-name {
+  flex: 1;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hud-rounds {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-score {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  color: var(--marigold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* -- the card ------------------------------------------------------- */
+
+.card-frame {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--surface);
+  transition: flex-grow var(--t-slow) var(--ease-out-expo);
+}
+
+/* seam: the image shrinks up when the label arrives */
+.card-frame-thumb {
+  flex: 0 0 150px;
+}
+
+.card-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity var(--t-med), transform var(--t-slow) var(--ease-out);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.card-dim {
+  opacity: 0.55;
+  transform: scale(1.02);
+}
+
+/* -- recording stage -------------------------------------------------- */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  padding-bottom: var(--s-2);
+}
+
+.stage-instruction {
+  font-weight: 600;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.stage-hint {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  min-height: 1.5em;
+}
+
+.talk-wrap {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: grid;
+  place-items: center;
+}
+
+/* ring timer: 8s linear draw while recording */
+.ring {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+  pointer-events: none;
+}
+
+.ring circle {
+  fill: none;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.ring-track {
+  stroke: var(--raised);
+}
+
+.ring-fill {
+  stroke: var(--marigold);
+  stroke-dasharray: 339.3; /* 2πr, r=54 */
+  stroke-dashoffset: 339.3;
+}
+
+.ring-run .ring-fill {
+  animation: ring-draw 8s linear forwards;
+}
+
+@keyframes ring-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* the One Action: hold to talk */
+.talk {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: var(--marigold);
+  color: var(--ink-warm);
+  display: grid;
+  place-items: center;
+  touch-action: none; /* the hold gesture owns this surface */
+  transition: transform var(--t-fast), background var(--t-fast);
+}
+
+.talk:active {
+  background: var(--marigold-deep);
+}
+
+/* breathing with the mic level — proof it hears you */
+.talk-live {
+  transform: scale(calc(1.04 + var(--mic-level, 0) * 0.14));
+  background: var(--marigold-deep);
+}
+
+.talk:disabled {
+  opacity: 0.85;
+}
+
+/* first-turn coach: one-time pulsing hint */
+.talk-coach {
+  animation: coach-pulse 1.6s var(--ease-out) 3;
+}
+
+@keyframes coach-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(80% 0.15 75 / 0.5); }
+  50% { box-shadow: 0 0 0 18px oklch(80% 0.15 75 / 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .talk-live { transform: scale(1.04); }
+}
+
+.spinner-warm {
+  border-color: oklch(22% 0.04 230 / 0.25);
+  border-top-color: var(--ink-warm);
+}
+
+/* -- confirm panel ------------------------------------------------------ */
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding-bottom: var(--s-2);
+  animation: confirm-in var(--t-slow) var(--ease-out);
+}
+
+@keyframes confirm-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.confirm-ask {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* game content: full-size Noto, never shrunk (DESIGN.md) */
+.confirm-label {
+  font-size: var(--text-display);
+  font-weight: 700;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.replay {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: var(--r-full);
+  padding: var(--s-2) var(--s-4);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  min-height: 44px;
+}
+
+.replay-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--marigold);
+}
+
+.replay-live {
+  animation: replay-blink 0.9s linear infinite;
+}
+
+@keyframes replay-blink {
+  50% { opacity: 0.3; }
+}
+
+.confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+.confirm-actions .cta {
+  margin-top: 0;
+  position: static;
+}
+
+.retake {
+  min-height: 48px;
+  color: var(--muted);
+  font-weight: 600;
+  border-radius: var(--r-md);
+}
+
+.retake:active {
+  background: var(--surface);
+}
+
+/* -- toast ---------------------------------------------------------------- */
+
+/* top-anchored so it never covers the talk button or CTAs */
+.toast {
+  position: fixed;
+  top: max(var(--s-6), env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  max-width: min(90vw, 420px);
+  text-align: center;
+  animation: toast-in var(--t-med) var(--ease-out);
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.toast-shake {
+  animation: toast-in var(--t-med) var(--ease-out), toast-shake 0.4s var(--ease-out) 0.05s;
+}
+
+@keyframes toast-shake {
+  0%, 100% { transform: translate(-50%, 0); }
+  25% { transform: translate(calc(-50% - 7px), 0); }
+  50% { transform: translate(calc(-50% + 6px), 0); }
+  75% { transform: translate(calc(-50% - 3px), 0); }
+}

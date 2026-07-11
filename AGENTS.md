@@ -35,23 +35,25 @@ Read these before changing a component:
 - `deckgen/`: standalone picture-deck CLI
 - `tune/`: isolated LoRA harness; reads local corpus only and never accesses DB
 
-## Windows development
+## WSL2/Linux development
 
-- Shell: PowerShell. Use `;` for sequential commands—do not use Bash `&&`.
+- Shell: Bash. Keep the repository on the native WSL filesystem, not under
+  `/mnt/c`, to avoid cross-filesystem performance and permission issues.
 - Use `uv` with Python 3.12 for the main application environment:
-  ```powershell
+  ```bash
   uv sync --python 3.12 --all-extras
-  .\.venv\Scripts\Activate.ps1
+  source .venv/bin/activate
   ```
 - Run local services with `docker compose up -d`; inspect with
   `docker compose ps`.
 - Start the backend with:
-  ```powershell
+  ```bash
   uv run uvicorn app.main:app --reload
   ```
-- Ollama is installed locally with `gemma4:latest` and
-  `nomic-embed-text:latest`. Confirm
-  exact available tags with `ollama list` before invoking them. Use these for
+- Ollama is an optional local-development dependency and may not be installed
+  inside WSL. Confirm availability and exact tags with `ollama list` before
+  invoking it. If present, use `gemma4:latest` and
+  `nomic-embed-text:latest` for
   local development, fixtures, or an explicitly designed offline fallback;
   do not silently substitute them for the canonical hackathon models in
   `app/models.py` or for required Gemini/Nano Banana evaluation paths.

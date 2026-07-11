@@ -90,3 +90,6 @@ class TriageClient(Protocol):
         thinking_level: str,
     ) -> dict[str, object]:
         """Return schema-conforming triage JSON for the supplied FLAC file."""
+
+    async def aclose(self) -> None:
+        """Close client-owned transport resources or no-op for local fakes."""

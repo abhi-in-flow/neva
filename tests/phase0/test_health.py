@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, call
 
 from httpx import AsyncClient
 
@@ -35,6 +35,15 @@ async def test_health_returns_ok_with_mocked_pool(
     logger.info("test_health_returns_ok_with_mocked_pool called")
     response = await client.get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "database": "connected"}
-    mock_pool.fetchval.assert_awaited_once_with("SELECT 1")
+    assert response.json() == {
+        "status": "ok",
+        "database": "connected",
+        "environment": "development",
+        "instance_marker": None,
+        "database_name": "dialect_factory",
+    }
+    assert mock_pool.fetchval.await_args_list == [
+        call("SELECT 1"),
+        call("SELECT current_database()"),
+    ]
     logger.info("test_health_returns_ok_with_mocked_pool completed")

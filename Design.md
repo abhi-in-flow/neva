@@ -46,6 +46,13 @@ A mobile-first React/Vite client owned by Arindam. It polls one state endpoint,
 renders the server-provided phase, records audio, and sends actions. It does
 not implement game rules.
 
+Matchmaking remains active while the backend reports onboarding or queued.
+Successful queued responses retry with bounded jitter, closing the concurrent
+`SKIP LOCKED` enqueue race without overlapping requests. Same-native pairing
+remains forbidden; the waiting screen explains that players need different
+native languages and at least one shared known language. Its QR only shares the
+onboarding URL—matchmaking itself remains automatic and backend-owned.
+
 ### Deck engine
 
 Generates culturally grounded picture cards with Nano Banana 2 Lite, verifies

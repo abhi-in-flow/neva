@@ -20,12 +20,14 @@ from app.game.config import get_game_config
 from app.game.types import (
     CardRecord,
     LeaderboardRow,
+    MetricsAggregateRow,
     MetricsSnapshot,
     PairRecord,
     PlayerRecord,
     PlayerStats,
     StateBundle,
     TurnRecord,
+    metrics_snapshot_from_aggregates,
     normalize_common_langs,
     resolve_label_text,
 )
@@ -547,18 +549,13 @@ class PostgresGameStore:
             kind,
             turn_id,
         )
-        # Prefer existence-guard insert so we do not depend on expression-index
-        # ON CONFLICT inference differences across Postgres builds.
+        # A targetless conflict handler is race-safe and does not depend on
+        # expression-index inference details across Postgres builds.
         row = await self._pool.fetchrow(
             """
             INSERT INTO jobs (kind, payload, status)
-            SELECT $1, jsonb_build_object('turn_id', $2::text), 'pending'
-            WHERE NOT EXISTS (
-                SELECT 1
-                FROM jobs
-                WHERE kind = $1
-                  AND payload->>'turn_id' = $2
-            )
+            VALUES ($1, jsonb_build_object('turn_id', $2::text), 'pending')
+            ON CONFLICT DO NOTHING
             RETURNING id
             """,
             kind,
@@ -988,42 +985,117 @@ class PostgresGameStore:
         return [LeaderboardRow(nickname=r["nickname"], score=int(r["score"])) for r in rows]
 
     async def metrics(self) -> MetricsSnapshot:
-        """Return venue throughput metrics."""
+        """Return venue throughput metrics from canonical tables only.
+
+        Definitions match ``MetricsSnapshot`` / frozen ``MetricsResponse``:
+        validated turns, eligible records, speaker native langs on validated
+        turns, gauntlet pass rate, live-deck generation metrics, and cost/sample
+        from complete latest-live-deck totals plus successful
+        ``gauntlet_triage`` API-call instrumentation. Other API operations are
+        excluded to prevent double-counting deck costs. ``common_langs`` and
+        unplayed registrations are absent by query design; native language tags
+        are never excluded merely because they may also be bridge languages.
+        Mutable ``metrics_counters`` are never read as truth.
+
+        Returns:
+            Canonical ``MetricsSnapshot`` for ``/api/metrics``.
+
+        Side effects:
+            One read-only aggregate query; INFO logs safe counts only.
+        """
         logger.info("PostgresGameStore.metrics called")
         row = await self._pool.fetchrow(
             """
             SELECT
                 (SELECT COUNT(*)::int FROM turns WHERE outcome = 'validated')
                     AS validated_pairs,
-                COALESCE(
-                    (SELECT value FROM metrics_counters WHERE key = 'training_eligible_pairs'),
-                    0
-                )::int AS training_eligible_pairs,
+                (SELECT COUNT(*)::int FROM records WHERE training_eligible IS TRUE)
+                    AS training_eligible_pairs,
+                (
+                    SELECT COUNT(*)::int
+                    FROM records r
+                    INNER JOIN turns t ON t.id = r.turn_id
+                    WHERE t.outcome = 'validated'
+                ) AS packaged_validated_records,
                 (
                     SELECT COALESCE(json_agg(lang ORDER BY lang), '[]'::json)
                     FROM (
-                        SELECT DISTINCT lang
-                        FROM (
-                            SELECT native_lang AS lang FROM players
-                            UNION
-                            SELECT jsonb_array_elements_text(common_langs) AS lang
-                            FROM players
-                        ) langs
-                    ) distinct_langs
-                ) AS languages
-            """,
+                        SELECT DISTINCT lower(trim(p.native_lang)) AS lang
+                        FROM turns t
+                        INNER JOIN players p ON p.id = t.speaker_id
+                        WHERE t.outcome = 'validated'
+                          AND nullif(trim(p.native_lang), '') IS NOT NULL
+                    ) speaker_langs
+                ) AS languages,
+                (
+                    SELECT COALESCE(SUM(estimated_cost_microusd), 0)::bigint
+                    FROM api_calls
+                    WHERE operation = 'gauntlet_triage'
+                      AND status = 'success'
+                      AND estimated_cost_microusd IS NOT NULL
+                ) AS gauntlet_triage_cost_microusd_sum,
+                (
+                    SELECT COUNT(*)::int
+                    FROM api_calls
+                    WHERE operation = 'gauntlet_triage'
+                      AND status = 'success'
+                ) AS successful_gauntlet_triage_call_count,
+                (
+                    SELECT COUNT(*)::int
+                    FROM api_calls
+                    WHERE operation = 'gauntlet_triage'
+                      AND status = 'success'
+                      AND estimated_cost_microusd IS NULL
+                ) AS unpriced_gauntlet_triage_call_count,
+                (
+                    SELECT generation_metrics
+                    FROM decks
+                    WHERE status = 'live'
+                    ORDER BY activated_at DESC NULLS LAST, created_at DESC
+                    LIMIT 1
+                ) AS generation_metrics
+            """
         )
         assert row is not None
         languages = row["languages"]
         if isinstance(languages, str):
             languages = json.loads(languages)
-        languages_list = [str(x) for x in (languages or [])]
-        return MetricsSnapshot(
-            validated_pairs=int(row["validated_pairs"]),
-            training_eligible_pairs=int(row["training_eligible_pairs"]),
-            language_count=len(languages_list),
-            languages=languages_list,
+        generation_metrics = row["generation_metrics"]
+        if isinstance(generation_metrics, str):
+            generation_metrics = json.loads(generation_metrics)
+        if generation_metrics is not None and not isinstance(generation_metrics, dict):
+            generation_metrics = None
+        snapshot = metrics_snapshot_from_aggregates(
+            MetricsAggregateRow(
+                validated_pairs=int(row["validated_pairs"] or 0),
+                training_eligible_pairs=int(row["training_eligible_pairs"] or 0),
+                packaged_validated_records=int(row["packaged_validated_records"] or 0),
+                languages=[str(x) for x in (languages or [])],
+                gauntlet_triage_cost_microusd_sum=int(
+                    row["gauntlet_triage_cost_microusd_sum"] or 0
+                ),
+                successful_gauntlet_triage_call_count=int(
+                    row["successful_gauntlet_triage_call_count"] or 0
+                ),
+                unpriced_gauntlet_triage_call_count=int(
+                    row["unpriced_gauntlet_triage_call_count"] or 0
+                ),
+                generation_metrics=generation_metrics,
+            )
         )
+        logger.info(
+            "PostgresGameStore.metrics completed validated_pairs=%s "
+            "training_eligible_pairs=%s language_count=%s "
+            "gauntlet_pass_rate_present=%s cost_present=%s "
+            "deck_ipm_present=%s",
+            snapshot.validated_pairs,
+            snapshot.training_eligible_pairs,
+            snapshot.language_count,
+            snapshot.gauntlet_pass_rate is not None,
+            snapshot.cost_per_validated_sample_usd is not None,
+            snapshot.deck_images_per_minute is not None,
+        )
+        return snapshot
 
     async def count_jobs(self, *, kind: str, turn_id: UUID) -> int:
         """Count jobs for a turn/kind."""

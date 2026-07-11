@@ -88,11 +88,15 @@ CREATE TABLE jobs (
     tries SMALLINT NOT NULL DEFAULT 0,
     last_error TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- Retry scheduling is independent from immutable insertion time.
+    available_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     claimed_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ
 );
 
-CREATE INDEX jobs_claim_idx ON jobs (status, created_at) WHERE status = 'pending';
+CREATE INDEX jobs_claim_idx
+    ON jobs (status, available_at, created_at)
+    WHERE status = 'pending';
 CREATE UNIQUE INDEX jobs_turn_kind_unique_idx
     ON jobs (kind, (payload->>'turn_id'));
 
@@ -122,3 +126,37 @@ CREATE TABLE api_calls (
     estimated_cost_microusd BIGINT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Exact normalized-PCM ownership is concurrency-safe per speaker. The
+-- acoustic envelope used for bounded near matching remains in turns.quality.
+CREATE TABLE speaker_audio_fingerprints (
+    speaker_id UUID NOT NULL REFERENCES players(id),
+    fingerprint TEXT NOT NULL,
+    turn_id UUID NOT NULL UNIQUE REFERENCES turns(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (speaker_id, fingerprint)
+);
+
+-- A worker updates one row periodically; Compose and operations health checks
+-- use recency to distinguish a live process from a stalled one.
+CREATE TABLE worker_heartbeats (
+    worker_id TEXT PRIMARY KEY,
+    process_id INTEGER NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('starting', 'running', 'stopping')),
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX turns_validated_idx
+    ON turns (speaker_id, created_at)
+    WHERE outcome = 'validated';
+CREATE INDEX records_training_eligible_idx
+    ON records (created_at)
+    WHERE training_eligible IS TRUE;
+CREATE INDEX decks_live_activation_idx
+    ON decks (activated_at DESC, created_at DESC)
+    WHERE status = 'live';
+CREATE INDEX api_calls_gauntlet_success_idx
+    ON api_calls (created_at)
+    WHERE status = 'success' AND operation = 'gauntlet_triage';

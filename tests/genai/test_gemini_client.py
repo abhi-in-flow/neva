@@ -11,12 +11,15 @@ import logging
 from typing import Any
 
 import pytest
+from google.genai import types
 
 from app.config import Settings
 from app.gemini_client import (
     GeminiClient,
     MediaBlob,
+    compute_gemini_flash_cost_microusd,
     create_gemini_client,
+    extract_token_usage_counts,
     inline_part,
     is_transient_error,
     sanitize_for_log,
@@ -57,6 +60,8 @@ def _settings(**overrides: Any) -> Settings:
         "nano_banana_max_concurrency": 2,
         "nano_banana_rpm": 120,
         "nano_banana_cost_microusd_per_image": 33600,
+        "gemini_flash_input_usd_per_million_tokens": 1.5,
+        "gemini_flash_output_usd_per_million_tokens": 9.0,
     }
     base.update(overrides)
     return Settings(**base)
@@ -406,3 +411,200 @@ async def test_aclose_closes_transport(fake_sleep) -> None:
     await client.aclose()
     assert transport.closed is True
     logger.info("test_aclose_closes_transport completed")
+
+
+def _usage_response(
+    *,
+    prompt: int,
+    response: int,
+    thoughts: int | None = None,
+) -> types.UsageMetadata:
+    """Build SDK usage metadata for deterministic cost tests.
+
+    Args:
+        prompt: Prompt/input token count.
+        response: Response/output token count.
+        thoughts: Optional separately reported thoughts tokens.
+
+    Returns:
+        A ``UsageMetadata`` instance accepted by the GenAI SDK types.
+    """
+    logger.info(
+        "_usage_response called prompt=%s response=%s thoughts=%s",
+        prompt,
+        response,
+        thoughts,
+    )
+    kwargs: dict[str, int] = {
+        "prompt_token_count": prompt,
+        "response_token_count": response,
+    }
+    if thoughts is not None:
+        kwargs["thoughts_token_count"] = thoughts
+    return types.UsageMetadata(**kwargs)
+
+
+def test_extract_token_usage_counts_known() -> None:
+    """Assert known usage metadata maps to billable input/output counts."""
+    logger.info("test_extract_token_usage_counts_known called")
+    response = FakeContentResponse(
+        usage_metadata=_usage_response(prompt=1000, response=200, thoughts=50),
+    )
+    usage = extract_token_usage_counts(response)
+    assert usage is not None
+    assert usage.input_tokens == 1000
+    assert usage.output_tokens == 250
+    assert usage.thoughts_tokens == 50
+    logger.info("test_extract_token_usage_counts_known completed")
+
+
+def test_extract_token_usage_counts_absent() -> None:
+    """Assert absent usage metadata yields ``None`` for cost safety."""
+    logger.info("test_extract_token_usage_counts_absent called")
+    assert extract_token_usage_counts(FakeContentResponse()) is None
+    assert extract_token_usage_counts(object()) is None
+    logger.info("test_extract_token_usage_counts_absent completed")
+
+
+def test_extract_token_usage_counts_malformed() -> None:
+    """Assert malformed usage metadata yields ``None`` instead of bad costs."""
+    logger.info("test_extract_token_usage_counts_malformed called")
+    missing_prompt = FakeContentResponse(
+        usage_metadata={"response_token_count": 10},
+    )
+    negative = FakeContentResponse(
+        usage_metadata={"prompt_token_count": -1, "response_token_count": 5},
+    )
+    invalid = FakeContentResponse(usage_metadata={"prompt_token_count": "many"})
+    assert extract_token_usage_counts(missing_prompt) is None
+    assert extract_token_usage_counts(negative) is None
+    assert extract_token_usage_counts(invalid) is None
+    logger.info("test_extract_token_usage_counts_malformed completed")
+
+
+def test_extract_token_usage_no_double_count_without_thoughts() -> None:
+    """Assert output tokens exclude thoughts when thoughts are not reported."""
+    logger.info("test_extract_token_usage_no_double_count_without_thoughts called")
+    response = FakeContentResponse(
+        usage_metadata=_usage_response(prompt=10, response=40),
+    )
+    usage = extract_token_usage_counts(response)
+    assert usage is not None
+    assert usage.output_tokens == 40
+    assert usage.thoughts_tokens is None
+    logger.info("test_extract_token_usage_no_double_count_without_thoughts completed")
+
+
+def test_compute_gemini_flash_cost_microusd_known() -> None:
+    """Assert Flash micro-USD math uses ceil per component then sums."""
+    logger.info("test_compute_gemini_flash_cost_microusd_known called")
+    usage = extract_token_usage_counts(
+        FakeContentResponse(
+            usage_metadata=_usage_response(prompt=1000, response=200),
+        )
+    )
+    cost = compute_gemini_flash_cost_microusd(usage, _settings())
+    assert cost == 3300
+    logger.info("test_compute_gemini_flash_cost_microusd_known completed")
+
+
+async def test_flash_cost_recorded_on_success(fake_sleep) -> None:
+    """Assert recorder stores counts-only usage meta and integer micro-USD."""
+    logger.info("test_flash_cost_recorded_on_success called")
+    transport = FakeGeminiTransport(
+        content_results=[
+            FakeContentResponse(
+                text='{"ok": true}',
+                parsed={"ok": True},
+                usage_metadata=_usage_response(prompt=1000, response=200, thoughts=10),
+            )
+        ]
+    )
+    recorder = FakeApiCallRecorder()
+    client = GeminiClient(
+        settings=_settings(),
+        transport=transport,
+        recorder=recorder,
+        sleep=fake_sleep,
+    )
+    result = await client.generate_json(
+        model=GEMINI_FLASH,
+        operation="triage",
+        contents="ping",
+        response_schema={"type": "object"},
+    )
+    assert result == {"ok": True}
+    row = recorder.rows[0]
+    assert row["estimated_cost_microusd"] == 3390
+    assert row["response_meta"]["input_token_count"] == 1000
+    assert row["response_meta"]["output_token_count"] == 210
+    assert row["response_meta"]["thoughts_token_count"] == 10
+    assert "result" not in row["response_meta"]
+    assert set(row["response_meta"].keys()) == {
+        "attempt",
+        "input_token_count",
+        "output_token_count",
+        "thoughts_token_count",
+    }
+    logger.info("test_flash_cost_recorded_on_success completed")
+
+
+async def test_flash_cost_null_when_usage_missing(fake_sleep) -> None:
+    """Assert missing usage metadata keeps canonical cost metrics null."""
+    logger.info("test_flash_cost_null_when_usage_missing called")
+    transport = FakeGeminiTransport(
+        content_results=[FakeContentResponse(text="ok", parsed=None)]
+    )
+    recorder = FakeApiCallRecorder()
+    client = GeminiClient(
+        settings=_settings(),
+        transport=transport,
+        recorder=recorder,
+        sleep=fake_sleep,
+    )
+    await client.generate_content(
+        model=GEMINI_FLASH,
+        operation="noop",
+        contents="hello",
+    )
+    row = recorder.rows[0]
+    assert row["estimated_cost_microusd"] is None
+    assert "input_token_count" not in row["response_meta"]
+    logger.info("test_flash_cost_null_when_usage_missing completed")
+
+
+async def test_retry_records_only_final_success_cost(fake_sleep) -> None:
+    """Assert failed retry rows stay unpriced and only success carries usage."""
+    logger.info("test_retry_records_only_final_success_cost called")
+    transport = FakeGeminiTransport(
+        content_results=[
+            api_error(429),
+            FakeContentResponse(
+                text='{"ok": true}',
+                parsed={"ok": True},
+                usage_metadata=_usage_response(prompt=100, response=50),
+            ),
+        ]
+    )
+    recorder = FakeApiCallRecorder()
+    client = GeminiClient(
+        settings=_settings(gemini_max_retries=3),
+        transport=transport,
+        recorder=recorder,
+        sleep=fake_sleep,
+    )
+    await client.generate_json(
+        model=GEMINI_FLASH,
+        operation="triage",
+        contents="ping",
+        response_schema={"type": "object"},
+    )
+    assert len(recorder.rows) == 2
+    assert recorder.rows[0]["status"] == "error"
+    assert recorder.rows[0]["estimated_cost_microusd"] is None
+    assert "input_token_count" not in recorder.rows[0]["response_meta"]
+    assert recorder.rows[1]["status"] == "success"
+    assert recorder.rows[1]["estimated_cost_microusd"] == 600
+    assert recorder.rows[1]["response_meta"]["input_token_count"] == 100
+    assert recorder.rows[1]["response_meta"]["output_token_count"] == 50
+    logger.info("test_retry_records_only_final_success_cost completed")

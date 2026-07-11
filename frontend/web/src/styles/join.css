@@ -1,0 +1,388 @@
+/* Join flow — brief 01. Two no-scroll steps sliding on one track. */
+
+.join-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 480px;
+  width: 100%;
+  margin-inline: auto;
+  padding: var(--s-4) var(--s-5) 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: 100dvh;
+}
+
+.join-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+}
+
+.step-dots {
+  display: inline-flex;
+  gap: var(--s-2);
+}
+
+.step-dots i {
+  width: 22px;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--raised);
+  transition: background var(--t-med) var(--ease-out);
+}
+
+.step-dots i.on {
+  background: var(--marigold);
+}
+
+.back-link {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  padding: var(--s-2) var(--s-3);
+  margin: calc(-1 * var(--s-2)) calc(-1 * var(--s-3));
+}
+
+/* -- the sliding track ------------------------------------------ */
+
+.join-track {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 100% 100%;
+  align-items: stretch;
+  transition: transform var(--t-slow) var(--ease-out-expo);
+}
+
+.join-track[data-step='1'] { transform: translateX(0); }
+.join-track[data-step='2'] { transform: translateX(-100%); }
+
+.join-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding-top: var(--s-4);
+  min-width: 0;
+}
+
+.join-step[aria-hidden='true'] {
+  visibility: hidden;
+  transition: visibility 0s var(--t-slow);
+}
+
+/* -- step 1 ------------------------------------------------------- */
+
+.hero {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-hero);
+  letter-spacing: -0.02em;
+  margin-block: var(--s-4) var(--s-2);
+}
+
+.hero-accent {
+  color: var(--marigold);
+}
+
+.hero small {
+  display: block;
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: var(--text-lg);
+  color: var(--muted);
+  letter-spacing: 0;
+  margin-top: var(--s-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.field > label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.name-row {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.name-row input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--s-3) var(--s-4);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  transition: border-color var(--t-fast);
+}
+
+.name-row input:focus-visible {
+  outline: none;
+  border-color: var(--marigold);
+}
+
+.shuffle {
+  width: 56px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 2px solid var(--line);
+  display: grid;
+  place-items: center;
+  color: var(--marigold);
+  transition: transform var(--t-fast);
+}
+
+.shuffle:active {
+  transform: rotate(90deg) scale(0.92);
+}
+
+/* -- chips --------------------------------------------------------- */
+
+.chip-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-2);
+}
+
+.chip {
+  min-height: 52px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  border: 2px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: var(--s-1) var(--s-2);
+  transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast);
+}
+
+.chip:active {
+  transform: scale(0.95);
+}
+
+.chip-on {
+  background: var(--raised);
+  border-color: var(--marigold);
+}
+
+.chip-en {
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.chip-native {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.chip-on .chip-native {
+  color: var(--ink);
+}
+
+.other-input {
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--s-3) var(--s-4);
+  font-size: var(--text-body);
+  transition: border-color var(--t-fast);
+}
+
+.other-input:focus-visible {
+  outline: none;
+  border-color: var(--marigold);
+}
+
+.other-input::placeholder {
+  color: var(--muted);
+}
+
+/* -- CTA (the One Action) ------------------------------------------ */
+
+/* The One Action stays in thumb reach: sticky above the fold line, content
+   scrolls beneath it on short phones / when validation copy adds height. */
+.cta {
+  margin-top: auto;
+  position: sticky;
+  bottom: 0;
+  min-height: 60px;
+  border-radius: var(--r-lg);
+  background: var(--marigold);
+  color: var(--ink-warm);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  letter-spacing: 0.01em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  padding-inline: var(--s-5);
+  transition: transform var(--t-fast), background var(--t-fast);
+}
+
+.cta:active:not(:disabled) {
+  transform: translateY(2px) scale(0.99);
+  background: var(--marigold-deep);
+}
+
+.cta:disabled {
+  opacity: 0.85;
+}
+
+.cta-pulse {
+  animation: cta-pulse 1.2s var(--ease-out) infinite;
+}
+
+@keyframes cta-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(80% 0.15 75 / 0.45); }
+  50% { box-shadow: 0 0 0 14px oklch(80% 0.15 75 / 0); }
+}
+
+.cta-block {
+  margin-top: auto;
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  background: linear-gradient(to top, var(--bg) 78%, transparent);
+  padding-top: var(--s-3);
+}
+
+.cta-block .cta {
+  margin-top: 0;
+  position: static;
+}
+
+/* keep a bg fade + breathing room under the sticky CTAs */
+.join-step {
+  padding-bottom: max(var(--s-4), env(safe-area-inset-bottom));
+}
+
+.join-step > .cta {
+  background: var(--marigold);
+  box-shadow: 0 -12px 24px -8px oklch(26% 0.055 205 / 0.9);
+}
+
+.mic-note {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid oklch(22% 0.04 230 / 0.25);
+  border-top-color: var(--ink-warm);
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* -- states ---------------------------------------------------------- */
+
+.field-error {
+  color: var(--marigold);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  animation: nudge var(--t-med) var(--ease-out);
+}
+
+@keyframes nudge {
+  0% { transform: translateX(0); }
+  30% { transform: translateX(-5px); }
+  60% { transform: translateX(4px); }
+  100% { transform: translateX(0); }
+}
+
+.step-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-display);
+  letter-spacing: -0.015em;
+  margin-top: var(--s-4);
+}
+
+.step-title:focus {
+  outline: none;
+}
+
+.step-sub {
+  color: var(--muted);
+  margin-top: calc(-1 * var(--s-3));
+}
+
+/* -- mic denied (warm failure, brief 01 §6) --------------------------- */
+
+.mic-denied {
+  margin-block: auto;
+  background: var(--failure-surface);
+  border: 2px solid var(--failure-edge);
+  border-radius: var(--r-lg);
+  padding: var(--s-6) var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.mic-denied-glyph {
+  font-size: 44px;
+}
+
+.mic-denied-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-title);
+}
+
+.mic-denied ol {
+  padding-left: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  color: var(--muted);
+}
+
+.mic-denied .cta {
+  margin-top: var(--s-2);
+}
+
+/* -- shared: reconnecting pill (contract §2.2) ------------------------ */
+
+.reconnect-pill {
+  position: fixed;
+  bottom: max(var(--s-4), env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  background: var(--raised);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-full);
+  border: 1px solid var(--line);
+}
+
+/* -- small phones: keep step 1 scroll-free ---------------------------- */
+
+@media (max-height: 700px) {
+  .hero { font-size: var(--text-display); }
+  .hero small { font-size: var(--text-body); }
+  .chip { min-height: 48px; }
+  .join-step { gap: var(--s-4); }
+}

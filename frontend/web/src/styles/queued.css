@@ -1,0 +1,160 @@
+/* Queued screen — brief 02: searching hero on top, leaderboard as the
+   entertainment below, recruiting escalation with QR. */
+
+.queued-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 480px;
+  width: 100%;
+  margin-inline: auto;
+  padding: var(--s-5);
+  gap: var(--s-6);
+  overflow-y: auto;
+}
+
+/* -- searching hero ---------------------------------------------- */
+
+.search-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--s-3);
+  padding-block: var(--s-6) var(--s-4);
+}
+
+.search-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-title);
+  letter-spacing: -0.01em;
+}
+
+.search-line {
+  color: var(--muted);
+  font-size: var(--text-body);
+  min-height: 3em;
+  animation: line-in var(--t-med) var(--ease-out);
+}
+
+@keyframes line-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* voice-wave motif: five bars breathing while we search */
+.pulse-wave {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 56px;
+  margin-bottom: var(--s-2);
+}
+
+.pulse-wave span {
+  width: 8px;
+  border-radius: var(--r-full);
+  background: var(--marigold);
+  animation: wave 1.4s var(--ease-out) infinite;
+}
+
+.pulse-wave span:nth-child(1) { height: 18px; animation-delay: 0ms; }
+.pulse-wave span:nth-child(2) { height: 34px; animation-delay: 120ms; }
+.pulse-wave span:nth-child(3) { height: 52px; animation-delay: 240ms; }
+.pulse-wave span:nth-child(4) { height: 34px; animation-delay: 360ms; }
+.pulse-wave span:nth-child(5) { height: 18px; animation-delay: 480ms; }
+
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.55); opacity: 0.65; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-wave span { animation: none; opacity: 0.9; }
+}
+
+/* -- recruiting escalation ---------------------------------------- */
+
+.recruit-qr {
+  margin-top: var(--s-3);
+  padding: var(--s-3);
+  background: #fff;
+  border-radius: var(--r-md);
+  line-height: 0;
+  animation: line-in var(--t-slow) var(--ease-out);
+}
+
+/* -- leaderboard ---------------------------------------------------- */
+
+.board-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.board-title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.board {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.board li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  padding: var(--s-3) var(--s-4);
+}
+
+.board-rank {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  color: var(--muted);
+  min-width: 1.6em;
+  font-variant-numeric: tabular-nums;
+}
+
+.board li:nth-child(1) .board-rank { color: var(--marigold); }
+
+.board-name {
+  flex: 1;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.board-score {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+}
+
+.board-you {
+  border: 2px solid var(--marigold);
+  background: var(--raised);
+}
+
+.board-pinned {
+  margin-top: var(--s-2);
+}
+
+.board-empty {
+  color: var(--muted);
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  padding: var(--s-4);
+  text-align: center;
+}

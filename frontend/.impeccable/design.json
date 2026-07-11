@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-11T08:30:00Z",
+  "title": "Design System: Dialect Data Factory",
+  "extensions": {
+    "colorMeta": {
+      "peacock-deep": {
+        "role": "primary",
+        "displayName": "Peacock Deep",
+        "canonical": "oklch(26% 0.055 205)",
+        "tonalRamp": ["oklch(15% 0.055 205)", "oklch(26% 0.055 205)", "oklch(38% 0.055 205)", "oklch(49% 0.055 205)", "oklch(60% 0.055 205)", "oklch(72% 0.055 205)", "oklch(83% 0.055 205)", "oklch(95% 0.02 205)"]
+      },
+      "marigold": {
+        "role": "secondary",
+        "displayName": "Marigold",
+        "canonical": "oklch(80% 0.15 75)",
+        "tonalRamp": ["oklch(15% 0.08 75)", "oklch(26% 0.11 75)", "oklch(38% 0.13 75)", "oklch(49% 0.15 72)", "oklch(60% 0.15 71)", "oklch(70% 0.15 70)", "oklch(80% 0.15 75)", "oklch(92% 0.08 80)"]
+      },
+      "tile-rani": {
+        "role": "tertiary",
+        "displayName": "Rani Pink",
+        "canonical": "oklch(52% 0.19 356)",
+        "tonalRamp": ["oklch(15% 0.1 356)", "oklch(26% 0.14 356)", "oklch(38% 0.17 356)", "oklch(52% 0.19 356)", "oklch(60% 0.19 356)", "oklch(72% 0.14 356)", "oklch(83% 0.09 356)", "oklch(95% 0.03 356)"]
+      },
+      "tile-sky": {
+        "role": "tertiary",
+        "displayName": "Monsoon Sky",
+        "canonical": "oklch(50% 0.11 230)",
+        "tonalRamp": ["oklch(15% 0.06 230)", "oklch(26% 0.08 230)", "oklch(38% 0.1 230)", "oklch(50% 0.11 230)", "oklch(60% 0.11 230)", "oklch(72% 0.09 230)", "oklch(83% 0.06 230)", "oklch(95% 0.02 230)"]
+      },
+      "tile-leaf": {
+        "role": "tertiary",
+        "displayName": "Banana Leaf",
+        "canonical": "oklch(50% 0.12 150)",
+        "tonalRamp": ["oklch(15% 0.06 150)", "oklch(26% 0.08 150)", "oklch(38% 0.1 150)", "oklch(50% 0.12 150)", "oklch(60% 0.12 150)", "oklch(72% 0.1 150)", "oklch(83% 0.07 150)", "oklch(95% 0.03 150)"]
+      },
+      "tile-terra": {
+        "role": "tertiary",
+        "displayName": "Terracotta",
+        "canonical": "oklch(50% 0.15 35)",
+        "tonalRamp": ["oklch(15% 0.07 35)", "oklch(26% 0.1 35)", "oklch(38% 0.13 35)", "oklch(50% 0.15 35)", "oklch(60% 0.15 35)", "oklch(72% 0.12 35)", "oklch(83% 0.08 35)", "oklch(95% 0.03 35)"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(96.5% 0.01 190)",
+        "tonalRamp": ["oklch(15% 0.01 190)", "oklch(26% 0.01 190)", "oklch(38% 0.01 190)", "oklch(49% 0.01 190)", "oklch(60% 0.015 192)", "oklch(72% 0.025 193)", "oklch(80% 0.035 195)", "oklch(96.5% 0.01 190)"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Hero", "purpose": "Shoutable words only: verdicts, versus names, taglines, TV podium." },
+      "headline": { "displayName": "Headline", "purpose": "Step titles and confirm labels." },
+      "title": { "displayName": "Title", "purpose": "CTAs and section heroes." },
+      "body": { "displayName": "Body", "purpose": "Instructions and copy; 18px floor (Arm's-Length Rule)." },
+      "label": { "displayName": "Label", "purpose": "Chips, field labels, HUD, hints." }
+    },
+    "shadows": [
+      { "name": "cta-scroll-fade", "value": "0 -12px 24px -8px oklch(26% 0.055 205 / 0.9)", "purpose": "Under the sticky CTA: signals content scrolling beneath. One of only two shadows in the system." },
+      { "name": "crown-drop", "value": "drop-shadow(0 4px 10px oklch(0% 0 0 / 0.35))", "purpose": "TV crown sitting above the podium." }
+    ],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Default state transitions (quint)." },
+      { "name": "ease-out-expo", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Big beats: floods, slides, seams." },
+      { "name": "t-fast", "value": "120ms", "purpose": "Press feedback." },
+      { "name": "t-med", "value": "240ms", "purpose": "State changes, toasts." },
+      { "name": "t-slow", "value": "420ms", "purpose": "Layout seams, takeover entrances." }
+    ],
+    "breakpoints": [
+      { "name": "small-phone", "value": "max-height 700px (compressed join metrics)" },
+      { "name": "tv", "value": "/tv route: fixed 16:9 @1080p, no responsive behavior" }
+    ]
+  },
+  "components": [
+    {
+      "name": "CTA Button",
+      "kind": "button",
+      "refersTo": "button-cta",
+      "description": "The One Action: exactly one per screen, sticky in thumb reach.",
+      "html": "<button class=\"ds-cta\">Let’s play</button>",
+      "css": ".ds-cta { background: #f5ae39; color: #031e29; font-family: 'Bricolage', system-ui, sans-serif; font-weight: 800; font-size: 22px; min-height: 60px; padding: 0 24px; border: none; border-radius: 24px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: transform 120ms, background 120ms; } .ds-cta:active { transform: translateY(2px) scale(0.99); background: #d98b09; } .ds-cta:focus-visible { outline: 3px solid #f5ae39; outline-offset: 2px; }"
+    },
+    {
+      "name": "Hold-to-Talk Button",
+      "kind": "custom",
+      "refersTo": "button-talk",
+      "description": "The signature control: 96px marigold circle that breathes with live mic level while a ring timer draws around it.",
+      "html": "<button class=\"ds-talk\" aria-label=\"Hold to talk\"><svg width=\"44\" height=\"44\" viewBox=\"0 0 24 24\" fill=\"none\"><rect x=\"9\" y=\"2.5\" width=\"6\" height=\"11.5\" rx=\"3\" fill=\"currentColor\"/><path d=\"M4.5 11a7.5 7.5 0 0 0 15 0\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\"/><path d=\"M12 18.5V22\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\"/></svg></button>",
+      "css": ".ds-talk { width: 96px; height: 96px; border-radius: 50%; background: #f5ae39; color: #031e29; border: none; display: grid; place-items: center; cursor: pointer; touch-action: none; transition: transform 120ms, background 120ms; } .ds-talk:active { background: #d98b09; transform: scale(1.06); } .ds-talk:focus-visible { outline: 3px solid #f5ae39; outline-offset: 4px; }"
+    },
+    {
+      "name": "Language Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Dual-script selectable chip; selected state gets a marigold border on a raised fill.",
+      "html": "<button class=\"ds-chip ds-chip-on\"><span class=\"ds-chip-en\">Assamese</span><span class=\"ds-chip-native\">অসমীয়া</span></button>",
+      "css": ".ds-chip { min-height: 52px; border-radius: 10px; background: #003b40; border: 2px solid #225c60; color: #ecf6f5; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 4px 12px; cursor: pointer; transition: transform 120ms, background 120ms, border-color 120ms; } .ds-chip:active { transform: scale(0.95); } .ds-chip-on { background: #004c50; border-color: #f5ae39; } .ds-chip-en { font-size: 14px; font-weight: 700; } .ds-chip-native { font-size: 14px; color: #a5c5c5; } .ds-chip-on .ds-chip-native { color: #ecf6f5; }"
+    },
+    {
+      "name": "Answer Tile",
+      "kind": "custom",
+      "refersTo": "tile-answer",
+      "description": "Fat family-colored answer tile with full-size Indic label; lockout state desaturates.",
+      "html": "<button class=\"ds-tile\">पानी का घड़ा</button>",
+      "css": ".ds-tile { min-height: 76px; border-radius: 16px; background: #b5226c; color: #ecf6f5; font-size: 24px; font-weight: 700; line-height: 1.3; padding: 12px 16px; border: none; text-align: center; cursor: pointer; transition: transform 120ms, filter 240ms, opacity 240ms; } .ds-tile:active { transform: scale(0.96); } .ds-tile:disabled { filter: saturate(0.15) brightness(0.7); opacity: 0.6; cursor: default; } .ds-tile:focus-visible { outline: 3px solid #f5ae39; outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "Surface-filled field; focus swaps the border to marigold (no double ring).",
+      "html": "<input class=\"ds-input\" value=\"Chai Champion\" />",
+      "css": ".ds-input { background: #003b40; border: 2px solid #225c60; border-radius: 16px; padding: 12px 16px; font-size: 18px; font-weight: 700; color: #ecf6f5; transition: border-color 120ms; } .ds-input:focus-visible { outline: none; border-color: #f5ae39; }"
+    },
+    {
+      "name": "Leaderboard Row",
+      "kind": "card",
+      "refersTo": "board-row",
+      "description": "Ranked surface row (never a card); the player's own row gets a marigold border.",
+      "html": "<div class=\"ds-row ds-row-you\"><span class=\"ds-row-rank\">4</span><span class=\"ds-row-name\">Chai Champion</span><span class=\"ds-row-score\">180</span></div>",
+      "css": ".ds-row { display: flex; align-items: center; gap: 12px; background: #003b40; border-radius: 10px; padding: 12px 16px; color: #ecf6f5; } .ds-row-you { border: 2px solid #f5ae39; background: #004c50; } .ds-row-rank { font-family: 'Bricolage', system-ui, sans-serif; font-weight: 800; font-size: 22px; color: #a5c5c5; min-width: 1.6em; font-variant-numeric: tabular-nums; } .ds-row-name { flex: 1; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-row-score { font-family: 'Bricolage', system-ui, sans-serif; font-weight: 800; font-size: 22px; font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Toast",
+      "kind": "custom",
+      "refersTo": "toast",
+      "description": "Top-anchored status toast (never covers the talk button); shake variant for re-records.",
+      "html": "<div class=\"ds-toast\">Didn’t catch that — louder! 🔊</div>",
+      "css": ".ds-toast { background: #004c50; border: 1px solid #225c60; color: #ecf6f5; font-size: 14px; font-weight: 600; padding: 12px 16px; border-radius: 16px; max-width: 420px; text-align: center; }"
+    },
+    {
+      "name": "Warm Failure Panel",
+      "kind": "custom",
+      "refersTo": "toast",
+      "description": "The No-Red Rule made concrete: failure states live on a warm dim surface with playful copy.",
+      "html": "<div class=\"ds-fail\"><h2 class=\"ds-fail-title\">We can’t hear you yet</h2><p class=\"ds-fail-body\">Your voice is the whole game — without the mic there’s nothing to play.</p></div>",
+      "css": ".ds-fail { background: #552b17; border: 2px solid #b3621e; border-radius: 24px; padding: 32px 24px; color: #ecf6f5; display: flex; flex-direction: column; gap: 12px; } .ds-fail-title { font-family: 'Bricolage', system-ui, sans-serif; font-weight: 800; font-size: 28px; margin: 0; } .ds-fail-body { margin: 0; font-size: 18px; line-height: 1.5; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Festival Game Stall",
+    "overview": "A game stall at an Indian festival, rebuilt as an app: a deep peacock-teal night-market world lit by one marigold action color and four saturated answer-tile hues, with a chunky display face doing the shouting and the system sans doing the talking. Kahoot's fat answer tiles, Duolingo's juicy feedback and blame-free misses, HQ Trivia's live-event tension — grounded in an unmistakably Indian palette. The system now exists as working code: every value in this document is extracted from web/src/styles/, and every color pair was contrast-verified numerically before it shipped.",
+    "keyCharacteristics": [
+      "The peacock world is constant; marigold appears exactly once per screen, on the primary action",
+      "Four answer-tile hues, always paired with position and full-size text",
+      "Fixed rem type scale (1.2 ratio); Bricolage 800 for shoutable words, system sans for everything else; Indic game content in system Noto ≥24px, never restyled",
+      "Motion is choreographed at the beats (versus reveal, verdict flood) and instant everywhere else; everything that animates in settles",
+      "Verified: ink/bg 13.7:1 · muted/bg 8.2:1 · ink-warm/marigold 9.0:1 · ink/tiles ≥5.1:1"
+    ],
+    "rules": [
+      { "name": "The One Action Rule", "body": "Marigold appears on exactly one element per screen: the primary action. Screens with no action have no marigold control — its absence is what makes the celebration floods land.", "section": "colors" },
+      { "name": "The Never-Alone Rule", "body": "Tile colors are always paired with position and a full-size text label. Color celebrates; it never carries meaning alone.", "section": "colors" },
+      { "name": "The No-Red Rule", "body": "Failure is warm, not alarming: the failure surface pair, playful copy, zero ❌ iconography anywhere in the app.", "section": "colors" },
+      { "name": "The Arm's-Length Rule", "body": "If a player standing in a noisy hall can't read it at arm's length, it's too small. Body never drops below 18px; game content never below 24px.", "section": "typography" },
+      { "name": "The Settle Rule", "body": "Everything that animates in visibly lands — rings stop, tiles settle, banners rest. Floating at rest is forbidden. Every animation has a reduced-motion fallback.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep exactly one marigold action per screen (The One Action Rule) — and zero on screens with nothing to press.",
+      "Do pair every tile color with position and a full-size label (The Never-Alone Rule).",
+      "Do render Indic game content in system Noto at ≥24px, everywhere, unstyled by the display face.",
+      "Do keep pointer-events: none on every decorative SVG overlay (rings) — a ring that eats a tap already shipped as a bug once.",
+      "Do verify contrast numerically when adding colors: body ≥4.5:1, large ≥3:1, and text-on-fill pairs checked against the ramp.",
+      "Do write failure states warm and playful on the Failure Surface pair — re-records tease, never blame.",
+      "Do give every animation a prefers-reduced-motion fallback and let everything settle (The Settle Rule)."
+    ],
+    "donts": [
+      "Don't use generic AI-startup slop: no purple-blue gradients, no glassmorphism, no sparkle emojis, no \"AI magic\" framing.",
+      "Don't go childish edtech: no mascots, no primary-school aesthetics — players are adults at a tech event.",
+      "Don't build corporate dashboard surfaces: no gray cards, tiny type, or data density in the player's face; factory telemetry stays off the TV ticker.",
+      "Don't default to Western stock-photo minimalism — the culturally rooted card imagery is the only imagery.",
+      "Don't let the card label exist anywhere — DOM, hidden field, cached state — before the server's confirm-phase payload.",
+      "Don't use red for any failure state, or ❌ iconography anywhere.",
+      "Don't animate anything that blocks input on a mid-range Android; beats cap at 2.5s and are always tap-skippable."
+    ]
+  }
+}

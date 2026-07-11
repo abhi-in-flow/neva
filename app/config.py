@@ -30,7 +30,11 @@ class Settings(BaseSettings):
 
     Attributes:
         database_url: Async Postgres DSN used by asyncpg.
+        app_environment: Deployment environment label exposed by health checks.
+        instance_marker: Explicit isolated-stack marker exposed by health checks.
         data_dir: Root directory for audio, decks, and corpus blobs.
+        frontend_dist_dir: Root of the built Vite application.
+        frontend_required: Fail startup when the production frontend is absent.
         rounds_cap: Maximum rounds per player session.
         db_pool_min_size: Minimum asyncpg pool connections.
         db_pool_max_size: Maximum asyncpg pool connections.
@@ -40,6 +44,8 @@ class Settings(BaseSettings):
         gemini_retry_max_delay_s: Cap on exponential backoff delay in seconds.
         gemini_flash_max_concurrency: In-flight cap for Gemini Flash calls.
         gemini_flash_rpm: Soft per-minute request budget for Gemini Flash.
+        gemini_flash_input_usd_per_million_tokens: Input-token pricing estimate.
+        gemini_flash_output_usd_per_million_tokens: Output-token pricing estimate.
         nano_banana_max_concurrency: In-flight cap for Nano Banana image calls.
         nano_banana_rpm: Soft per-minute request budget for Nano Banana.
         nano_banana_cost_microusd_per_image: Best-effort cost estimate per image.
@@ -49,7 +55,11 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql://dialect:dialect_dev_only@localhost:5432/dialect_factory"
+    app_environment: str = "development"
+    instance_marker: str = ""
     data_dir: Path = Path("data")
+    frontend_dist_dir: Path = Path("frontend/web/dist")
+    frontend_required: bool = False
     rounds_cap: int = 20
     db_pool_min_size: int = 1
     db_pool_max_size: int = 10
@@ -60,6 +70,8 @@ class Settings(BaseSettings):
     gemini_retry_max_delay_s: float = 8.0
     gemini_flash_max_concurrency: int = 4
     gemini_flash_rpm: int = 60
+    gemini_flash_input_usd_per_million_tokens: float = 1.5
+    gemini_flash_output_usd_per_million_tokens: float = 9.0
     nano_banana_max_concurrency: int = 2
     nano_banana_rpm: int = 30
     nano_banana_cost_microusd_per_image: int = 33600
@@ -111,6 +123,12 @@ def gemini_settings_log_meta(settings: Settings) -> dict[str, object]:
         "retry_max_delay_s": settings.gemini_retry_max_delay_s,
         "flash_max_concurrency": settings.gemini_flash_max_concurrency,
         "flash_rpm": settings.gemini_flash_rpm,
+        "flash_input_usd_per_million_tokens": (
+            settings.gemini_flash_input_usd_per_million_tokens
+        ),
+        "flash_output_usd_per_million_tokens": (
+            settings.gemini_flash_output_usd_per_million_tokens
+        ),
         "nano_banana_max_concurrency": settings.nano_banana_max_concurrency,
         "nano_banana_rpm": settings.nano_banana_rpm,
         "nano_banana_cost_microusd_per_image": settings.nano_banana_cost_microusd_per_image,
@@ -132,9 +150,14 @@ def get_settings() -> Settings:
     """
     settings = Settings()
     logger.info(
-        "get_settings called data_dir=%s rounds_cap=%s db_pool_min_size=%s "
+        "get_settings called environment=%s instance_marker_set=%s data_dir=%s "
+        "frontend_dist_dir=%s frontend_required=%s rounds_cap=%s db_pool_min_size=%s "
         "db_pool_max_size=%s database=%s gemini=%s",
+        settings.app_environment,
+        bool(settings.instance_marker),
         settings.data_dir,
+        settings.frontend_dist_dir,
+        settings.frontend_required,
         settings.rounds_cap,
         settings.db_pool_min_size,
         settings.db_pool_max_size,

@@ -4,12 +4,20 @@ The service contains the worker's state transitions while adapters own database,
 filesystem, and GenAI effects. This preserves the ``triage → package`` split:
 triage never exposes labels or creates records, and package never appends an
 unscored or ineligible record.
+
+Resilience behaviors owned here:
+
+- stale processing-claim recovery at startup and on a configured interval
+- crash-idempotent eligible export (reconcile ``shard_file IS NULL``)
+- advisory-locked logical shard flushing with utterance de-dupe before append
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -33,6 +41,11 @@ class GauntletService:
         triage_client: TriageClient,
         data_dir: Path,
         limits: GauntletLimits,
+        *,
+        worker_id: str = "test-worker",
+        process_id: int | None = None,
+        heartbeat_interval_seconds: float = 10.0,
+        heartbeat_metadata: dict[str, object] | None = None,
     ) -> None:
         """Set up worker collaborators.
 
@@ -41,13 +54,42 @@ class GauntletService:
             triage_client: Shared-client adapter implementing ``TriageClient``.
             data_dir: Root of contract-relative runtime audio and corpus paths.
             limits: Centralized operational thresholds and retry configuration.
+            worker_id: Stable database heartbeat identity.
+            process_id: Current process ID, defaulting to this Python process.
+            heartbeat_interval_seconds: Maximum delay between running heartbeats.
+            heartbeat_metadata: Redacted operational metadata persisted per beat.
         """
         self._repository = repository
         self._triage_client = triage_client
         self._data_dir = data_dir
         self._limits = limits
+        self._worker_id = worker_id
+        self._process_id = process_id if process_id is not None else os.getpid()
+        self._heartbeat_interval_seconds = heartbeat_interval_seconds
+        self._heartbeat_metadata = heartbeat_metadata or {}
         self._corpus = CorpusWriter(data_dir / "corpus", limits.shard_record_limit)
-        logger.info("GauntletService initialized data_dir=%s", data_dir)
+        logger.info(
+            "GauntletService initialized data_dir=%s worker_id=%s process_id=%s "
+            "heartbeat_interval_seconds=%s",
+            data_dir,
+            worker_id,
+            self._process_id,
+            heartbeat_interval_seconds,
+        )
+
+    async def recover_stale_claims(self) -> int:
+        """Invoke repository stale-claim recovery using centralized limits.
+
+        Returns:
+            Number of jobs returned to pending.
+        """
+        logger.info(
+            "GauntletService.recover_stale_claims called stale_after_seconds=%s",
+            self._limits.stale_claim_seconds,
+        )
+        recovered = await self._repository.recover_stale_claims(self._limits.stale_claim_seconds)
+        logger.info("GauntletService.recover_stale_claims completed recovered=%s", recovered)
+        return recovered
 
     async def process_once(self) -> bool:
         """Claim and process at most one durable job.
@@ -78,12 +120,57 @@ class GauntletService:
         return True
 
     async def run_forever(self) -> None:
-        """Poll and process durable jobs until the process is cancelled."""
-        logger.info("run_forever called poll_seconds=%s", self._limits.poll_seconds)
+        """Poll jobs with independent periodic recovery and running heartbeats."""
+        logger.info(
+            "run_forever called poll_seconds=%s stale_claim_interval_seconds=%s "
+            "heartbeat_interval_seconds=%s",
+            self._limits.poll_seconds,
+            self._limits.stale_claim_interval_seconds,
+            self._heartbeat_interval_seconds,
+        )
+        last_recovery = time.monotonic()
+        heartbeat_task = asyncio.create_task(
+            self._heartbeat_loop(),
+            name=f"gauntlet-heartbeat-{self._worker_id}",
+        )
+        try:
+            while True:
+                now = time.monotonic()
+                if now - last_recovery >= self._limits.stale_claim_interval_seconds:
+                    await self.recover_stale_claims()
+                    last_recovery = time.monotonic()
+                worked = await self.process_once()
+                if not worked:
+                    await asyncio.sleep(self._limits.poll_seconds)
+        finally:
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                logger.info("heartbeat loop cancelled worker_id=%s", self._worker_id)
+
+    async def _heartbeat_loop(self) -> None:
+        """Publish running status periodically independent of job activity."""
+        logger.info(
+            "_heartbeat_loop called worker_id=%s interval_seconds=%s",
+            self._worker_id,
+            self._heartbeat_interval_seconds,
+        )
         while True:
-            worked = await self.process_once()
-            if not worked:
-                await asyncio.sleep(self._limits.poll_seconds)
+            await asyncio.sleep(self._heartbeat_interval_seconds)
+            try:
+                await self._repository.upsert_worker_heartbeat(
+                    worker_id=self._worker_id,
+                    process_id=self._process_id,
+                    status="running",
+                    metadata=self._heartbeat_metadata,
+                )
+            except Exception as error:
+                logger.exception(
+                    "heartbeat update failed worker_id=%s error_type=%s",
+                    self._worker_id,
+                    type(error).__name__,
+                )
 
     async def _triage(self, job: Job) -> None:
         """Normalize audio, call the combined model gate, and persist quality.
@@ -97,8 +184,11 @@ class GauntletService:
         flac_relative = Path("audio") / f"{context.turn_id}.flac"
         flac_path = self._data_dir / flac_relative
         await transcode_to_flac(raw_path, flac_path, self._limits)
-        fingerprint = audio_fingerprint(flac_path)
-        duplicate = await self._repository.speaker_has_fingerprint(context.speaker_id, fingerprint)
+        fingerprint = await audio_fingerprint(flac_path, self._limits)
+        # Read-only soft hint for the model path; persist_triage owns registration.
+        soft_duplicate = await self._repository.speaker_has_matching_fingerprint(
+            context.speaker_id, fingerprint, exclude_turn_id=context.turn_id
+        )
         prompt = _triage_prompt(context)
         logger.info(
             "GemAI triage request model=%s thinking_level=low prompt=%s response_schema_keys=%s "
@@ -122,14 +212,21 @@ class GauntletService:
             context.turn_id,
             response,
         )
-        result = _parse_triage(response, fingerprint, duplicate)
+        result = _parse_triage(response, fingerprint.dedup_hash, soft_duplicate)
         await self._repository.persist_triage(
-            context.turn_id, flac_relative.as_posix(), result.as_quality_json()
+            context.turn_id,
+            flac_relative.as_posix(),
+            result.as_quality_json(),
+            speaker_id=context.speaker_id,
+            fingerprint=fingerprint,
         )
         await self._repository.increment_metric("gauntlet_triaged_total")
 
     async def _package(self, job: Job) -> None:
-        """Create a canonical record and append only if all gates pass.
+        """Create a canonical record and reconcile eligible shard export.
+
+        Existing records with ``shard_file IS NULL`` are reconciled rather than
+        skipped. Ineligible records are never appended to training shards.
 
         Args:
             job: Claimed package job whose payload identifies one scored turn.
@@ -146,15 +243,76 @@ class GauntletService:
             return
         golden = _golden_record(context)
         eligible = _training_eligible(context)
-        inserted = await self._repository.create_record(context.turn_id, golden, eligible)
-        if not inserted:
-            logger.info("package idempotent existing_record turn_id=%s", context.turn_id)
+        existing = await self._repository.get_record_export_state(context.turn_id)
+        if existing is None:
+            inserted = await self._repository.create_record(context.turn_id, golden, eligible)
+            if inserted:
+                await self._repository.increment_metric("gauntlet_records_total")
+            existing = await self._repository.get_record_export_state(context.turn_id)
+            if existing is None:
+                raise RuntimeError(f"record missing after create turn_id={context.turn_id}")
+        else:
+            logger.info(
+                "package reconciling existing_record turn_id=%s eligible=%s shard_file=%s",
+                context.turn_id,
+                existing.training_eligible,
+                existing.shard_file,
+            )
+
+        if not existing.training_eligible or not eligible:
+            logger.info(
+                "package skipping shard export turn_id=%s stored_eligible=%s recomputed_eligible=%s",
+                context.turn_id,
+                existing.training_eligible,
+                eligible,
+            )
             return
-        await self._repository.increment_metric("gauntlet_records_total")
-        if eligible:
+
+        if existing.shard_file:
+            logger.info(
+                "package already linked turn_id=%s shard_file=%s",
+                context.turn_id,
+                existing.shard_file,
+            )
+            return
+
+        await self._export_eligible_record(context.turn_id, existing.golden or golden)
+
+    async def _export_eligible_record(self, turn_id: str, golden: dict[str, object]) -> None:
+        """Append-or-link one eligible record under the logical flusher lock.
+
+        Args:
+            turn_id: Eligible turn UUID.
+            golden: Canonical record JSON to append when not already present.
+        """
+        logger.info("_export_eligible_record called turn_id=%s", turn_id)
+        async with self._repository.shard_flusher_lock():
+            state = await self._repository.get_record_export_state(turn_id)
+            if state is None:
+                raise RuntimeError(f"eligible record disappeared turn_id={turn_id}")
+            if not state.training_eligible:
+                logger.info("_export_eligible_record aborted ineligible turn_id=%s", turn_id)
+                return
+            if state.shard_file:
+                logger.info(
+                    "_export_eligible_record already linked turn_id=%s shard=%s",
+                    turn_id,
+                    state.shard_file,
+                )
+                return
+            found = self._corpus.find_utterance(turn_id)
+            if found is not None:
+                logger.info(
+                    "_export_eligible_record relinking crash_window turn_id=%s shard=%s",
+                    turn_id,
+                    found,
+                )
+                await self._repository.set_record_shard(turn_id, found)
+                return
             shard = self._corpus.append(golden)
-            await self._repository.set_record_shard(context.turn_id, shard)
+            await self._repository.set_record_shard(turn_id, shard)
             await self._repository.increment_metric("gauntlet_training_eligible_total")
+            logger.info("_export_eligible_record completed turn_id=%s shard=%s", turn_id, shard)
 
     async def _required_context(self, turn_id: str) -> TurnContext:
         """Load a turn context or raise a retryable diagnostic error."""

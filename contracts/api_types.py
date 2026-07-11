@@ -179,3 +179,6 @@ class AudioUploadResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     database: str
+    environment: str | None = None
+    instance_marker: str | None = None
+    database_name: str | None = None

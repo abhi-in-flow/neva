@@ -12,9 +12,11 @@ import logging
 from collections import Counter
 from pathlib import Path
 
+import pytest
+
 from tune.config import load_config
 from tune.make_dummy import generate_dummy
-from tune.prepare import validate_and_prepare, write_jsonl
+from tune.prepare import resolve_audio_path, validate_and_prepare, write_jsonl
 
 LOGGER = logging.getLogger(__name__)
 
@@ -57,7 +59,11 @@ def test_dummy_audio_preparation_is_deterministic_and_stratified(tmp_path: Path)
         "or-IN": 4,
     }
     assert first_train[0]["input_mode"] == "audio"
-    assert first_train[0]["messages"][0]["content"][1]["type"] == "audio"
+    user_content = first_train[0]["messages"][0]["content"]
+    assistant_content = first_train[0]["messages"][1]["content"]
+    assert user_content[0]["type"] == "audio"
+    assert user_content[1]["type"] == "text"
+    assert assistant_content == [{"type": "text", "text": first_train[0]["target"]}]
 
 
 def test_text_fallback_requires_and_uses_transcript_sidecar(tmp_path: Path) -> None:
@@ -81,6 +87,26 @@ def test_text_fallback_requires_and_uses_transcript_sidecar(tmp_path: Path) -> N
     assert write_jsonl(output, train) == 80
     assert len(holdout) == 20
     assert train[0]["input_mode"] == "text"
-    assert isinstance(train[0]["messages"][0]["content"], str)
+    assert train[0]["messages"][0]["content"][0]["type"] == "text"
+    assert train[0]["messages"][1]["content"][0]["text"] == train[0]["target"]
     assert output.is_file()
+
+
+def test_audio_path_resolution_rejects_escape_from_data_root(tmp_path: Path) -> None:
+    """Prevent prepared records from reading arbitrary files outside DATA_DIR."""
+    LOGGER.info(
+        "test_audio_path_resolution_rejects_escape_from_data_root called temp_name=%s",
+        tmp_path.name,
+    )
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    escaped = tmp_path / "outside.flac"
+    escaped.write_bytes(b"fLaC\x00fixture")
+    record = {
+        "utterance_id": "malicious-fixture",
+        "audio_ref": {"clean_flac": "../outside.flac"},
+    }
+
+    with pytest.raises(ValueError, match="escapes DATA_DIR"):
+        resolve_audio_path(record, data_dir)
 

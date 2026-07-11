@@ -1,7 +1,21 @@
+x-app-environment: &app-environment
+  DATABASE_URL: ${CONTAINER_DATABASE_URL:-postgresql://dialect:dialect_dev_only@postgres:5432/dialect_factory}
+  DATA_DIR: /app/data
+  APP_ENVIRONMENT: ${APP_ENVIRONMENT:-development}
+  INSTANCE_MARKER: ${INSTANCE_MARKER:-}
+  FRONTEND_DIST_DIR: /app/frontend/web/dist
+  FRONTEND_REQUIRED: "true"
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  DECK_ADMIN_API_KEY: ${DECK_ADMIN_API_KEY:-}
+
+x-app-build: &app-build
+  context: .
+  dockerfile: Dockerfile
+
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: dialect-data-factory-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-dialect_factory}
       POSTGRES_USER: ${POSTGRES_USER:-dialect}
@@ -15,6 +29,72 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 5s
+
+  migrate:
+    image: ${NEVA_IMAGE:-dialect-data-factory:local}
+    build: *app-build
+    command: ["python", "-m", "scripts.bootstrap_database"]
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    image: ${NEVA_IMAGE:-dialect-data-factory:local}
+    build: *app-build
+    init: true
+    restart: unless-stopped
+    environment:
+      <<: *app-environment
+      DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-20}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - "${HOST_DATA_DIR:-./data}:/app/data"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json,urllib.request; p=json.load(urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5)); assert p['status']=='ok' and p['database']=='connected'"
+      interval: 10s
+      timeout: 6s
+      retries: 5
+      start_period: 15s
+
+  worker:
+    image: ${NEVA_IMAGE:-dialect-data-factory:local}
+    build: *app-build
+    command: ["python", "-m", "worker"]
+    init: true
+    restart: unless-stopped
+    environment:
+      <<: *app-environment
+      WORKER_ID: ${WORKER_ID:-gauntlet-1}
+      WORKER_POOL_MIN_SIZE: ${WORKER_POOL_MIN_SIZE:-1}
+      WORKER_POOL_MAX_SIZE: ${WORKER_POOL_MAX_SIZE:-4}
+      HEARTBEAT_INTERVAL_SECONDS: ${HEARTBEAT_INTERVAL_SECONDS:-10}
+      HEARTBEAT_STALE_SECONDS: ${HEARTBEAT_STALE_SECONDS:-45}
+      WORKER_FAKE_GEMINI: ${WORKER_FAKE_GEMINI:-false}
+      WORKER_FAKE_GEMINI_DELAY_SECONDS: ${WORKER_FAKE_GEMINI_DELAY_SECONDS:-0}
+      WORKER_FAKE_GEMINI_FAILURE_RATE: ${WORKER_FAKE_GEMINI_FAILURE_RATE:-0}
+    volumes:
+      - "${HOST_DATA_DIR:-./data}:/app/data"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-m", "worker.health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
 volumes:
   postgres_data:

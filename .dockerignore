@@ -1,0 +1,46 @@
+# Version control and editor metadata
+.git
+.gitignore
+.cursor
+.vscode
+
+# Secrets and local environment (injected at runtime)
+.env
+.env.*
+!.env.example
+
+# Runtime blobs (bind-mounted in production)
+data/
+
+# Python development artifacts
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+*.egg-info/
+dist/
+build/
+
+# Frontend dev artifacts (rebuilt in the Node stage)
+frontend/web/node_modules/
+frontend/web/dist/
+
+# Tests, tuning harness, and planning docs (not runtime)
+tests/
+tune/
+build-docs/
+phase-plan/
+agents/
+
+# Documentation not required inside the image
+*.md
+
+# Local caches and scratch
+.cache/
+tmp/
+*.log

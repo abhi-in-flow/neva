@@ -28,7 +28,7 @@ Wave 2 integration.
 
 ## Verification
 
-- `uv run pytest -q` — 57 tests passed after final contract corrections.
+- `uv run pytest -q` — 87 tests passed after final contract corrections.
 - Deck-control extension verification — 87 repository tests passed; repository
   Ruff checks passed; migration `0003_operator_deck_control.sql` applied.
 - Focused game suite — 11 tests passed.
@@ -38,6 +38,20 @@ Wave 2 integration.
 - Worker, deck, and tuning command-line dry-runs passed.
 - Integrated API health, leaderboard, and metrics endpoints returned valid
   responses against Postgres.
+
+### WSL2/Linux migration revalidation
+
+- Python 3.12 environment synchronized successfully with `uv`.
+- All 87 repository tests, Ruff checks, and Python module compilation passed.
+- Docker Compose Postgres started healthy with project-scoped resources; the
+  schema and both forward migrations applied successfully.
+- Live API health, leaderboard, metrics, and static-root checks passed against
+  Postgres.
+- Worker, six-card deck, and full 100-row tuning dummy dry-runs passed.
+- WSL GPU passthrough exposes the RTX 5090; a real WebM/Opus fixture
+  successfully transcoded to 16 kHz mono FLAC and produced a fingerprint.
+- `cloudflared` and Ollama are not installed inside WSL; tunnel publication and
+  optional local-model fallback remain operational setup cuts.
 
 ## Accepted cuts and go/no-go work
 

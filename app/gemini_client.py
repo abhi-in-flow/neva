@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import random
 import time
 from collections import deque
@@ -86,6 +87,23 @@ class MediaBlob:
 
 
 @dataclass(frozen=True)
+class TokenUsageCounts:
+    """Safe token counts extracted from SDK ``usage_metadata``.
+
+    Attributes:
+        input_tokens: Billable prompt / input tokens (``prompt_token_count``).
+        output_tokens: Billable generated tokens including thoughts when the
+            SDK reports ``thoughts_token_count`` separately from
+            ``response_token_count``.
+        thoughts_tokens: Raw thoughts count when present; ``None`` when absent.
+    """
+
+    input_tokens: int
+    output_tokens: int
+    thoughts_tokens: int | None = None
+
+
+@dataclass(frozen=True)
 class ContentResult:
     """Normalized text / JSON result from ``generate_content``.
 
@@ -96,6 +114,11 @@ class ContentResult:
         operation: Caller-supplied operation label for logs and ``api_calls``.
         latency_ms: Wall time for the successful attempt only.
         attempts: Total attempts including retries.
+        input_token_count: Prompt tokens from ``usage_metadata`` when present.
+        output_token_count: Billable output tokens (response + separate
+            thoughts) when usage metadata is present.
+        thoughts_token_count: Raw thoughts tokens when reported separately.
+        estimated_cost_microusd: Integer micro-USD estimate for Flash calls.
     """
 
     text: str
@@ -104,6 +127,10 @@ class ContentResult:
     operation: str
     latency_ms: int
     attempts: int
+    input_token_count: int | None = None
+    output_token_count: int | None = None
+    thoughts_token_count: int | None = None
+    estimated_cost_microusd: int | None = None
 
 
 @dataclass(frozen=True)
@@ -589,6 +616,223 @@ def _looks_like_base64(text: str) -> bool:
     return set(sample) <= alphabet
 
 
+def _coerce_non_negative_int(value: Any) -> int | None:
+    """Coerce a usage-metadata counter to a non-negative integer.
+
+    Args:
+        value: Raw counter from SDK ``usage_metadata``.
+
+    Returns:
+        A non-negative ``int``, or ``None`` when the value is absent, boolean,
+        non-integral, or negative.
+    """
+    logger.info(
+        "_coerce_non_negative_int called value_type=%s",
+        type(value).__name__,
+    )
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    try:
+        coerced = int(value)
+    except (TypeError, ValueError):
+        return None
+    return coerced if coerced >= 0 else None
+
+
+def _usage_metadata_mapping(usage: Any) -> Mapping[str, Any] | None:
+    """Normalize SDK usage metadata into a plain mapping.
+
+    Args:
+        usage: ``usage_metadata`` object or mapping from a response.
+
+    Returns:
+        A string-keyed mapping of counters, or ``None`` when unusable.
+    """
+    logger.info(
+        "_usage_metadata_mapping called usage_type=%s",
+        type(usage).__name__,
+    )
+    if usage is None:
+        return None
+    if isinstance(usage, Mapping):
+        return usage
+    if hasattr(usage, "model_dump") and callable(usage.model_dump):
+        try:
+            dumped = usage.model_dump(exclude_none=True)
+        except Exception:
+            return None
+        if isinstance(dumped, Mapping):
+            return dumped
+    return None
+
+
+def _usage_field_int(data: Mapping[str, Any], *keys: str) -> int | None:
+    """Read the first present usage counter across camelCase and snake_case.
+
+    Args:
+        data: Normalized usage-metadata mapping.
+        *keys: Candidate field names in priority order.
+
+    Returns:
+        A non-negative integer counter, or ``None`` when absent or invalid.
+    """
+    logger.info("_usage_field_int called keys=%s", keys)
+    for key in keys:
+        if key in data:
+            value = _coerce_non_negative_int(data[key])
+            if value is not None:
+                return value
+    return None
+
+
+def extract_token_usage_counts(response: Any) -> TokenUsageCounts | None:
+    """Extract billable token counts from a successful SDK response.
+
+    Reads ``usage_metadata.prompt_token_count`` as input and
+    ``response_token_count`` (or legacy ``candidates_token_count``) as output.
+    When the SDK reports ``thoughts_token_count`` separately from
+    ``response_token_count``—consistent with ``total_token_count`` summing both
+    buckets—thoughts are added to the billable output total to avoid
+    under-counting without double-counting overlapping fields.
+
+    Args:
+        response: Transport response object (typically
+            ``GenerateContentResponse``).
+
+    Returns:
+        ``TokenUsageCounts`` when required counters are present and valid;
+        otherwise ``None`` so downstream cost metrics remain null.
+    """
+    logger.info(
+        "extract_token_usage_counts called response_type=%s",
+        type(response).__name__,
+    )
+    data = _usage_metadata_mapping(getattr(response, "usage_metadata", None))
+    if data is None:
+        return None
+
+    prompt_tokens = _usage_field_int(
+        data,
+        "prompt_token_count",
+        "promptTokenCount",
+    )
+    response_tokens = _usage_field_int(
+        data,
+        "response_token_count",
+        "responseTokenCount",
+        "candidates_token_count",
+        "candidatesTokenCount",
+    )
+    thoughts_tokens = _usage_field_int(
+        data,
+        "thoughts_token_count",
+        "thoughtsTokenCount",
+    )
+
+    if prompt_tokens is None or response_tokens is None:
+        logger.info(
+            "extract_token_usage_counts incomplete prompt=%s response=%s",
+            prompt_tokens is not None,
+            response_tokens is not None,
+        )
+        return None
+
+    output_tokens = response_tokens
+    if thoughts_tokens is not None and thoughts_tokens > 0:
+        output_tokens += thoughts_tokens
+
+    counts = TokenUsageCounts(
+        input_tokens=prompt_tokens,
+        output_tokens=output_tokens,
+        thoughts_tokens=thoughts_tokens,
+    )
+    logger.info(
+        "extract_token_usage_counts result input_tokens=%s output_tokens=%s "
+        "thoughts_tokens=%s",
+        counts.input_tokens,
+        counts.output_tokens,
+        counts.thoughts_tokens,
+    )
+    return counts
+
+
+def compute_gemini_flash_cost_microusd(
+    usage: TokenUsageCounts | None,
+    settings: Settings,
+) -> int | None:
+    """Estimate Gemini Flash cost in micro-USD from token usage.
+
+    Applies configured per-million-token USD rates:
+    ``micro_usd = ceil(input * input_rate) + ceil(output * output_rate)``.
+    Each component uses conservative ``math.ceil`` rounding so totals are
+    deterministic and never under-estimate fractional micro-USD amounts.
+
+    Args:
+        usage: Extracted token counts, or ``None`` when usage is unavailable.
+        settings: Application settings with Flash pricing knobs.
+
+    Returns:
+        Integer micro-USD total, or ``None`` when ``usage`` is absent.
+    """
+    logger.info(
+        "compute_gemini_flash_cost_microusd called usage_present=%s "
+        "input_rate=%s output_rate=%s",
+        usage is not None,
+        settings.gemini_flash_input_usd_per_million_tokens,
+        settings.gemini_flash_output_usd_per_million_tokens,
+    )
+    if usage is None:
+        return None
+
+    input_rate = settings.gemini_flash_input_usd_per_million_tokens
+    output_rate = settings.gemini_flash_output_usd_per_million_tokens
+    input_microusd = math.ceil(usage.input_tokens * input_rate)
+    output_microusd = math.ceil(usage.output_tokens * output_rate)
+    total = input_microusd + output_microusd
+    logger.info(
+        "compute_gemini_flash_cost_microusd result input_microusd=%s "
+        "output_microusd=%s total_microusd=%s",
+        input_microusd,
+        output_microusd,
+        total,
+    )
+    return total
+
+
+def usage_counts_response_meta(
+    *,
+    input_token_count: int | None,
+    output_token_count: int | None,
+    thoughts_token_count: int | None,
+) -> dict[str, int]:
+    """Build safe ``response_meta`` usage fields (counts only).
+
+    Args:
+        input_token_count: Prompt/input tokens when known.
+        output_token_count: Billable output tokens when known.
+        thoughts_token_count: Separate thoughts tokens when reported.
+
+    Returns:
+        A mapping containing only integer counters suitable for ``api_calls``.
+    """
+    logger.info(
+        "usage_counts_response_meta called input=%s output=%s thoughts=%s",
+        input_token_count,
+        output_token_count,
+        thoughts_token_count,
+    )
+    meta: dict[str, int] = {}
+    if input_token_count is not None:
+        meta["input_token_count"] = input_token_count
+    if output_token_count is not None:
+        meta["output_token_count"] = output_token_count
+    if thoughts_token_count is not None:
+        meta["thoughts_token_count"] = thoughts_token_count
+    return meta
+
+
 def is_transient_error(exc: BaseException) -> bool:
     """Return whether an exception should be retried with backoff.
 
@@ -766,6 +1010,13 @@ class GeminiClient:
             )
             text = getattr(response, "text", None) or ""
             parsed = getattr(response, "parsed", None)
+            usage = extract_token_usage_counts(response)
+            cost_microusd: int | None = None
+            if model == GEMINI_FLASH:
+                cost_microusd = compute_gemini_flash_cost_microusd(
+                    usage,
+                    self._settings,
+                )
             return ContentResult(
                 text=text,
                 parsed=parsed,
@@ -773,14 +1024,23 @@ class GeminiClient:
                 operation=operation,
                 latency_ms=0,
                 attempts=0,
+                input_token_count=usage.input_tokens if usage else None,
+                output_token_count=usage.output_tokens if usage else None,
+                thoughts_token_count=usage.thoughts_tokens if usage else None,
+                estimated_cost_microusd=cost_microusd,
             )
+
+        def _content_cost(result: ContentResult) -> int | None:
+            if model == GEMINI_FLASH:
+                return result.estimated_cost_microusd
+            return None
 
         result, latency_ms, attempts = await self._run_with_policy(
             model=model,
             operation=operation,
             request_meta=request_meta,
             call=_call,
-            cost_fn=lambda _r: None,
+            cost_fn=_content_cost,
         )
         # Rebuild with accurate timing/attempts (inner result used latency 0).
         final = ContentResult(
@@ -790,6 +1050,10 @@ class GeminiClient:
             operation=operation,
             latency_ms=latency_ms,
             attempts=attempts,
+            input_token_count=result.input_token_count,
+            output_token_count=result.output_token_count,
+            thoughts_token_count=result.thoughts_token_count,
+            estimated_cost_microusd=result.estimated_cost_microusd,
         )
         logger.info(
             "GeminiClient.generate_content response model=%s operation=%s "
@@ -1095,10 +1359,10 @@ class GeminiClient:
             try:
                 result = await call()
                 latency_ms = int((time.perf_counter() - started) * 1000)
-                response_meta = {
-                    "attempt": attempt,
-                    "result": sanitize_for_log(_result_log_payload(result)),
-                }
+                response_meta = _build_success_response_meta(
+                    result=result,
+                    attempt=attempt,
+                )
                 await self._safe_record(
                     model=model,
                     operation=operation,
@@ -1204,6 +1468,54 @@ class GeminiClient:
             )
 
 
+def _build_success_response_meta(*, result: Any, attempt: int) -> dict[str, Any]:
+    """Build sanitized ``response_meta`` for a successful GenAI call.
+
+    Flash/content rows include integer usage counters only—never model text or
+    media. Image rows retain count/byte-length summaries without inline bytes.
+
+    Args:
+        result: ``ContentResult``, ``ImageResult``, or other client result.
+        attempt: 1-based attempt index for this recorded row.
+
+    Returns:
+        JSON-serializable metadata for ``api_calls.response_meta``.
+    """
+    logger.info(
+        "_build_success_response_meta called result_type=%s attempt=%s",
+        type(result).__name__,
+        attempt,
+    )
+    meta: dict[str, Any] = {"attempt": attempt}
+    if isinstance(result, ContentResult):
+        meta.update(_success_response_usage_meta(result))
+        return meta
+    meta["result"] = sanitize_for_log(_result_log_payload(result))
+    return meta
+
+
+def _success_response_usage_meta(result: Any) -> dict[str, int]:
+    """Attach safe usage counters to a successful ``api_calls`` row.
+
+    Args:
+        result: ``ContentResult`` or other client result object.
+
+    Returns:
+        Integer token-count fields for ``response_meta``; empty when unknown.
+    """
+    logger.info(
+        "_success_response_usage_meta called result_type=%s",
+        type(result).__name__,
+    )
+    if not isinstance(result, ContentResult):
+        return {}
+    return usage_counts_response_meta(
+        input_token_count=result.input_token_count,
+        output_token_count=result.output_token_count,
+        thoughts_token_count=result.thoughts_token_count,
+    )
+
+
 def _result_log_payload(result: Any) -> Any:
     """Build a log-safe summary of a successful client result object.
 
@@ -1214,7 +1526,20 @@ def _result_log_payload(result: Any) -> Any:
         A mapping suitable for ``sanitize_for_log``.
     """
     if isinstance(result, ContentResult):
-        return {"text": result.text, "parsed": result.parsed}
+        payload: dict[str, Any] = {
+            "text": result.text,
+            "parsed": result.parsed,
+        }
+        usage_meta = usage_counts_response_meta(
+            input_token_count=result.input_token_count,
+            output_token_count=result.output_token_count,
+            thoughts_token_count=result.thoughts_token_count,
+        )
+        if usage_meta:
+            payload["usage"] = usage_meta
+        if result.estimated_cost_microusd is not None:
+            payload["estimated_cost_microusd"] = result.estimated_cost_microusd
+        return payload
     if isinstance(result, ImageResult):
         return {
             "image_count": len(result.images),

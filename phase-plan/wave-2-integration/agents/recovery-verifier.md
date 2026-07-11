@@ -2,7 +2,7 @@
 
 ## Goal
 
-Create and verify Windows-friendly, non-destructive operational procedures for
+Create and verify WSL2/Linux-friendly, non-destructive operational procedures for
 service restart, database backup, and runtime-data backup.
 
 ## Owned paths
@@ -12,7 +12,7 @@ component, contract, and live data paths are read-only.
 
 ## Required behavior
 
-- PowerShell-compatible health/status and backup commands;
+- Bash-compatible health/status and backup commands;
 - timestamped Postgres dump and runtime-data copy;
 - dry-run mode showing intended sources and destinations;
 - explicit refusal to overwrite existing backups;

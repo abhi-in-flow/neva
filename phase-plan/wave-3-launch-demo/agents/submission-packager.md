@@ -14,7 +14,7 @@ Do not edit source code, contracts, runtime data, or teammate-owned frontend.
 
 - Track 3 qualification: high-throughput regional deck pipeline is load-bearing.
 - Gemma work clearly labeled optional/special-prize scope.
-- setup and Windows run instructions verified against the frozen build;
+- setup and WSL2/Linux run instructions verified against the frozen build;
 - architecture, data flow, privacy boundaries, and what was built today;
 - exact approved metrics supplied by the evidence verifier;
 - accessible one-minute-video and live-demo links when provided;

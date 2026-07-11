@@ -1,0 +1,22 @@
+{
+  "state_version": 6,
+  "phase": "guessing",
+  "player": { "nickname": "Chai Champion", "score": 20, "rank": 9, "rounds_played": 2, "rounds_cap": 20 },
+  "pair": { "partner_nickname": "Bijli Rani", "common_lang": "hi" },
+  "turn": {
+    "role": "guesser",
+    "card_image_url": null,
+    "label": null,
+    "options": [
+      { "id": "00000000-0000-4000-8000-000000000001", "text": "मछली" },
+      { "id": "00000000-0000-4000-8000-000000000002", "text": "पानी का घड़ा" },
+      { "id": "00000000-0000-4000-8000-000000000003", "text": "बाँस की टोकरी" },
+      { "id": "00000000-0000-4000-8000-000000000004", "text": "मिट्टी का दीया" }
+    ],
+    "audio_url": "/media/audio/sample.webm",
+    "attempts_left": 2,
+    "deadline_ts": 0
+  },
+  "last_result": null,
+  "leaderboard_top": []
+}

@@ -1,0 +1,80 @@
+/* ============================================================
+   Dialect Data Factory — design tokens
+   North star: "The Festival Game Stall" (DESIGN.md)
+   All color pairs contrast-verified (see design/briefs):
+     ink/bg 13.7:1 · muted/bg 8.2:1 · ink-warm/marigold 9.0:1
+     tile fills vs ink ≥5.1:1
+   ============================================================ */
+
+:root {
+  /* -- color: the peacock world ------------------------------ */
+  --bg: oklch(26% 0.055 205);            /* peacock deep — the app's constant surface */
+  --surface: oklch(32% 0.06 202);        /* panels, inputs */
+  --raised: oklch(38% 0.065 200);        /* pressed chips, hover surfaces */
+  --line: oklch(44% 0.06 200);           /* hairline borders on surface */
+
+  --ink: oklch(96.5% 0.01 190);          /* primary text */
+  --muted: oklch(80% 0.035 195);         /* secondary text — 8.2:1 on bg */
+
+  /* -- the One Action color ---------------------------------- */
+  --marigold: oklch(80% 0.15 75);        /* the single warm CTA per screen */
+  --marigold-deep: oklch(70% 0.15 70);   /* active/pressed */
+  --ink-warm: oklch(22% 0.04 230);       /* text on marigold — 9:1 */
+
+  /* -- answer-tile family (guesser) --------------------------- */
+  --tile-rani: oklch(52% 0.19 356);
+  --tile-sky: oklch(50% 0.11 230);
+  --tile-leaf: oklch(50% 0.12 150);
+  --tile-terra: oklch(50% 0.15 35);
+
+  /* -- warm failure (never red-alert) ------------------------- */
+  --failure-surface: oklch(34% 0.07 45); /* warm dim panel */
+  --failure-edge: oklch(58% 0.13 55);
+
+  /* -- type ---------------------------------------------------- */
+  --font-display: 'Bricolage', system-ui, sans-serif;
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* fixed rem scale, 1.2 ratio (product register) */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-body: 1.125rem;   /* 18px floor — arm's-length rule */
+  --text-lg: 1.375rem;
+  --text-title: 1.75rem;
+  --text-display: 2.5rem;
+  --text-hero: 3.25rem;
+
+  /* -- space (4pt base) --------------------------------------- */
+  --s-1: 0.25rem;
+  --s-2: 0.5rem;
+  --s-3: 0.75rem;
+  --s-4: 1rem;
+  --s-5: 1.5rem;
+  --s-6: 2rem;
+  --s-7: 3rem;
+  --s-8: 4rem;
+
+  /* -- shape --------------------------------------------------- */
+  --r-sm: 10px;
+  --r-md: 16px;
+  --r-lg: 24px;
+  --r-full: 999px;
+
+  /* -- motion --------------------------------------------------- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);      /* quint */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-fast: 120ms;
+  --t-med: 240ms;
+  --t-slow: 420ms;
+
+  /* -- z scale --------------------------------------------------- */
+  --z-sticky: 10;
+  --z-overlay: 20;
+  --z-toast: 30;
+}
+
+@font-face {
+  font-family: 'Bricolage';
+  src: url('/fonts/bricolage-800-latin.woff2') format('woff2');
+  font-weight: 800;
+  font-display: swap;
+}

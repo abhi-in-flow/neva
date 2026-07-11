@@ -1,0 +1,12 @@
+{
+  "state_version": 8,
+  "phase": "session_done",
+  "player": { "nickname": "Chai Champion", "score": 180, "rank": 4, "rounds_played": 20, "rounds_cap": 20 },
+  "pair": null, "turn": null, "last_result": null,
+  "leaderboard_top": [
+    { "nickname": "Bijli Rani", "score": 320 },
+    { "nickname": "Momo Master", "score": 290 },
+    { "nickname": "Toofan Tez", "score": 250 },
+    { "nickname": "Chai Champion", "score": 180 }
+  ]
+}

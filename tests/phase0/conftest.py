@@ -51,12 +51,12 @@ def mock_pool() -> AsyncMock:
     """Build an asyncpg-like pool mock for health and lifespan tests.
 
     Returns:
-        An ``AsyncMock`` with ``fetchval`` returning ``1`` and an awaitable
-        ``close`` method.
+        An ``AsyncMock`` whose health and database-name probes return
+        deterministic values, plus an awaitable ``close`` method.
     """
     logger.info("mock_pool fixture setup")
     pool = AsyncMock()
-    pool.fetchval = AsyncMock(return_value=1)
+    pool.fetchval = AsyncMock(side_effect=[1, "dialect_factory"])
     pool.close = AsyncMock()
     return pool
 

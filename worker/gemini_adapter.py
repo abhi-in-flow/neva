@@ -21,6 +21,9 @@ from app.gemini_client import (
     PostgresApiCallRecorder,
     create_gemini_client,
 )
+from worker.config import WorkerSettings
+from worker.fake_triage import create_fake_triage_client, validate_fake_mode
+from worker.models import TriageClient
 
 logger = logging.getLogger(__name__)
 
@@ -101,3 +104,32 @@ def create_triage_client(pool: Any | None = None) -> SharedGeminiTriageClient:
     recorder = PostgresApiCallRecorder(pool) if pool is not None else None
     client = create_gemini_client(get_settings(), recorder=recorder)
     return SharedGeminiTriageClient(client)
+
+
+def create_configured_triage_client(
+    settings: WorkerSettings,
+    pool: Any | None = None,
+) -> TriageClient:
+    """Select paid production or no-cost isolated-load triage explicitly.
+
+    Args:
+        settings: Worker settings containing the three fake-mode gates.
+        pool: Asyncpg-compatible pool for production API-call instrumentation.
+
+    Returns:
+        A fake client only in the fully isolated load environment, otherwise the
+        shared production Gemini adapter.
+
+    Raises:
+        RuntimeError: If load/fake controls are partial or unsafe.
+    """
+    logger.info(
+        "create_configured_triage_client called worker_id=%s app_environment=%s "
+        "fake_enabled=%s",
+        settings.worker_id,
+        settings.app_environment,
+        settings.worker_fake_gemini,
+    )
+    if validate_fake_mode(settings):
+        return create_fake_triage_client(settings)
+    return create_triage_client(pool)

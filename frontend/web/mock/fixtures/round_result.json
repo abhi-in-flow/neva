@@ -1,0 +1,9 @@
+{
+  "state_version": 7,
+  "phase": "round_result",
+  "player": { "nickname": "Chai Champion", "score": 30, "rank": 8, "rounds_played": 3, "rounds_cap": 20 },
+  "pair": { "partner_nickname": "Bijli Rani", "common_lang": "hi" },
+  "turn": null,
+  "last_result": { "outcome": "validated", "points_delta": 10, "message": "Bijli Rani got it on the first try!" },
+  "leaderboard_top": []
+}

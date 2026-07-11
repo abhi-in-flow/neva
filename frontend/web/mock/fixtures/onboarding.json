@@ -1,0 +1,9 @@
+{
+  "state_version": 1,
+  "phase": "onboarding",
+  "player": { "nickname": "Chai Champion", "score": 0, "rank": null, "rounds_played": 0, "rounds_cap": 20 },
+  "pair": null,
+  "turn": null,
+  "last_result": null,
+  "leaderboard_top": []
+}

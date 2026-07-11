@@ -132,9 +132,9 @@ def build_sft_row(
     if not all(isinstance(value, str) and value.strip() for value in (utterance_id, native_language, target)):
         raise ValueError("eligible records require utterance_id, native_lang_tag, common_lang_text")
     if mode == "audio":
-        user_content: str | list[dict[str, str]] = [
-            {"type": "text", "text": TASK_TEMPLATE.format(native_language=native_language)},
+        user_content: list[dict[str, str]] = [
             {"type": "audio", "audio": str(audio_path)},
+            {"type": "text", "text": TASK_TEMPLATE.format(native_language=native_language)},
         ]
     elif mode == "text":
         transcript = transcripts.get(utterance_id)
@@ -142,10 +142,15 @@ def build_sft_row(
             raise ValueError(
                 f"text fallback requires a non-empty transcript sidecar row for {utterance_id}"
             )
-        user_content = TEXT_TASK_TEMPLATE.format(
-            native_language=native_language,
-            transcript=transcript,
-        )
+        user_content = [
+            {
+                "type": "text",
+                "text": TEXT_TASK_TEMPLATE.format(
+                    native_language=native_language,
+                    transcript=transcript,
+                ),
+            }
+        ]
     else:
         raise ValueError("mode must be 'audio' or 'text'")
     return {
@@ -155,7 +160,7 @@ def build_sft_row(
         "input_mode": mode,
         "messages": [
             {"role": "user", "content": user_content},
-            {"role": "assistant", "content": target},
+            {"role": "assistant", "content": [{"type": "text", "text": target}]},
         ],
     }
 
@@ -274,8 +279,19 @@ def main(argv: list[str] | None = None) -> int:
             f"train={len(train)} holdout={len(holdout)} mode={args.mode}"
         )
         return 0
-    write_jsonl(args.output / "train.jsonl", train)
-    write_jsonl(args.output / "holdout.jsonl", holdout)
+    train_path = args.output / "train.jsonl"
+    holdout_path = args.output / "holdout.jsonl"
+    write_jsonl(train_path, train)
+    write_jsonl(holdout_path, holdout)
+    from tune.manifest import build_dataset_manifest, write_manifest
+
+    manifest = build_dataset_manifest(
+        discover_shards(args.corpus),
+        train_path,
+        holdout_path,
+        config,
+    )
+    write_manifest(args.output / "dataset_manifest.json", manifest)
     print(f"Prepared train={len(train)} holdout={len(holdout)} mode={args.mode}")
     return 0
 

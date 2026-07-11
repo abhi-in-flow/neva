@@ -1,0 +1,266 @@
+/* /tv — brief 06: QR-dominant recruitment poster, 16:9 landscape @1080p.
+   The phone display ceiling doesn't apply at TV scale (asserted in brief). */
+
+.tv {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr 84px;
+  grid-template-areas:
+    'board recruit'
+    'ticker ticker';
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* -- left two-thirds: the live board ---------------------------------- */
+
+.tv-board {
+  grid-area: board;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 48px 56px 24px;
+  gap: 40px;
+  min-height: 0;
+}
+
+.podium {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr 1fr;
+  gap: 28px;
+  align-items: end;
+}
+
+.podium-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  border-radius: 22px;
+  padding: 28px 20px 22px;
+  text-align: center;
+  color: var(--ink);
+  transition: background 300ms;
+}
+
+.podium-1 { background: var(--tile-rani); padding-block: 44px 30px; }
+.podium-2 { background: var(--tile-sky); }
+.podium-3 { background: var(--tile-terra); }
+
+.crown {
+  width: 52px;
+  height: 52px;
+  color: var(--marigold);
+  position: absolute;
+  top: -30px;
+  filter: drop-shadow(0 4px 10px oklch(0% 0 0 / 0.35));
+}
+
+.podium-name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 44px;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.podium-1 .podium-name { font-size: 56px; }
+
+.podium-score {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 36px;
+  opacity: 0.9;
+  font-variant-numeric: tabular-nums;
+}
+
+.podium-1 .podium-score { font-size: 46px; }
+
+/* ranks 4–8: one fat list */
+
+.tv-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.tv-list li {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 14px 28px;
+}
+
+.tv-rank {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 34px;
+  color: var(--muted);
+  min-width: 1.4em;
+  font-variant-numeric: tabular-nums;
+}
+
+.tv-name {
+  flex: 1;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 38px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tv-score {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 38px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* beat highlight: the row the room just changed */
+.row-beat {
+  outline: 4px solid var(--marigold);
+  outline-offset: 3px;
+  animation: row-flash 0.5s var(--ease-out);
+}
+
+@keyframes row-flash {
+  from { filter: brightness(1.35); }
+  to { filter: brightness(1); }
+}
+
+.beat-banner {
+  position: absolute;
+  bottom: 18px;
+  left: 56px;
+  background: var(--marigold);
+  color: var(--ink-warm);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 34px;
+  padding: 12px 32px;
+  border-radius: var(--r-full);
+  animation: beat-in 300ms var(--ease-out-expo);
+}
+
+@keyframes beat-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beat-banner, .row-beat { animation: none; }
+}
+
+.tv-stale {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  color: var(--muted);
+  font-size: 26px;
+  opacity: 0.7;
+}
+
+/* -- empty board: the poster does all the work ------------------------- */
+
+.tv-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.tv-empty-line {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 72px;
+  letter-spacing: -0.02em;
+}
+
+.tv-empty-sub {
+  font-size: 40px;
+  color: var(--marigold);
+  font-weight: 700;
+}
+
+/* -- right third: the recruitment block --------------------------------- */
+
+.tv-recruit {
+  grid-area: recruit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+  padding: 48px;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+}
+
+.tv-pitch {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 84px;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  color: var(--marigold);
+  text-align: center;
+}
+
+.tv-qr {
+  padding: 20px;
+  background: #fff;
+  border-radius: 26px;
+  outline: 6px solid var(--marigold);
+  line-height: 0;
+}
+
+.tv-pitch-sub {
+  font-size: 30px;
+  color: var(--ink);
+  font-weight: 600;
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* -- ticker chyron --------------------------------------------------------- */
+
+.tv-ticker {
+  grid-area: ticker;
+  display: flex;
+  align-items: center;
+  padding-inline: 56px;
+  background: oklch(20% 0.05 207);
+  border-top: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.tv-ticker-line {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 38px;
+  color: var(--marigold);
+  animation: ticker-in 500ms var(--ease-out);
+  white-space: nowrap;
+}
+
+@keyframes ticker-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}

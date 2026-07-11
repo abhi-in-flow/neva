@@ -1,0 +1,10 @@
+{
+  "validated_pairs": 214,
+  "training_eligible_pairs": 187,
+  "language_count": 6,
+  "languages": ["as", "bn", "en", "hi", "kn", "ta"],
+  "cost_per_validated_sample_usd": 0.034,
+  "gauntlet_pass_rate": 0.91,
+  "deck_images_per_minute": 12.5,
+  "deck_cost_per_image_usd": 0.0336
+}

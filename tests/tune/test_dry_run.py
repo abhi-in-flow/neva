@@ -12,7 +12,7 @@ import logging
 import sys
 from pathlib import Path
 
-from tune.compare import main as compare_main
+from tune.compare import main as compare_main, select_samples
 from tune.config import load_config
 from tune.make_dummy import generate_dummy, main as make_dummy_main
 from tune.metrics import compute_metrics, main as metrics_main
@@ -83,6 +83,17 @@ def test_private_metrics_score_exact_and_fuzzy_outputs(tmp_path: Path) -> None:
     assert metrics["sample_count"] == 2
     assert metrics["aggregates"]["tuned"]["exact_matches"] == 2
     assert "headline claims" in serialized
+
+
+def test_comparison_selects_exactly_five_deterministic_rows() -> None:
+    """Limit stage inference to the configured deterministic qualitative set."""
+    LOGGER.info("test_comparison_selects_exactly_five_deterministic_rows called")
+    rows = [{"utterance_id": f"row-{index}"} for index in range(20)]
+
+    selected = select_samples(rows, 5)
+
+    assert selected == rows[:5]
+    assert len(selected) == 5
 
 
 def test_dummy_and_metrics_dry_runs_do_not_write_outputs(tmp_path: Path) -> None:

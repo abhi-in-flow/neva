@@ -27,10 +27,12 @@ class FakeContentResponse:
     Attributes:
         text: Model text output.
         parsed: Optional pre-parsed object (dict or pydantic-like).
+        usage_metadata: Optional SDK-shaped usage metadata for cost tests.
     """
 
     text: str = ""
     parsed: Any | None = None
+    usage_metadata: Any | None = None
 
 
 @dataclass

@@ -1,18 +1,20 @@
-"""Safe audio conversion and deterministic duplicate-fingerprint utilities.
+"""Safe audio conversion and fingerprint delegation for the gauntlet.
 
 The gauntlet invokes ffmpeg without a shell to normalize untrusted browser
-uploads into contract-required 16 kHz mono FLAC. Logs contain only paths,
-return codes, byte counts, and hashes—never inline audio.
+uploads into contract-required 16 kHz mono FLAC. Acoustic de-duplication lives
+in ``worker.fingerprint``; this module keeps a thin sync-compatible wrapper for
+call sites that only need the stored ``dedup_hash`` string. Logs contain only
+paths, return codes, byte counts, and hashes—never inline audio.
 """
 
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 from pathlib import Path
 
 from worker.config import GauntletLimits
+from worker.fingerprint import AcousticFingerprint, compute_acoustic_fingerprint
 
 logger = logging.getLogger(__name__)
 
@@ -69,22 +71,19 @@ async def transcode_to_flac(
     logger.info("transcode_to_flac completed destination=%s bytes=%s", destination, destination.stat().st_size)
 
 
-def audio_fingerprint(flac_path: Path) -> str:
-    """Return a deterministic SHA-256 fingerprint of normalized FLAC bytes.
+async def audio_fingerprint(flac_path: Path, limits: GauntletLimits) -> AcousticFingerprint:
+    """Compute the deterministic acoustic fingerprint for a clean FLAC file.
 
     Args:
         flac_path: Existing clean FLAC recording.
+        limits: Decode and envelope configuration.
 
     Returns:
-        Hexadecimal SHA-256 digest used for per-speaker duplicate matching.
+        Acoustic fingerprint whose ``dedup_hash`` is persisted on the turn.
     """
     logger.info(
         "audio_fingerprint called flac_path=%s bytes=%s",
         flac_path,
         flac_path.stat().st_size if flac_path.exists() else None,
     )
-    digest = hashlib.sha256()
-    with flac_path.open("rb") as audio_file:
-        for chunk in iter(lambda: audio_file.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    return await compute_acoustic_fingerprint(flac_path, limits)
