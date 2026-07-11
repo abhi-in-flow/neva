@@ -34,7 +34,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
-from deckgen.config import FAKE_IMAGE_BYTES, IMAGE_MIME_TYPE
+from deckgen.config import FAKE_IMAGE_BYTES, IMAGE_ASPECT_RATIO, IMAGE_MIME_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -443,7 +443,10 @@ class SharedGeminiClientAdapter:
         )
         client = self._resolve()
         result = await client.generate_images(
-            model=model, prompt=prompt, operation=operation
+            model=model,
+            prompt=prompt,
+            operation=operation,
+            config={"aspect_ratio": IMAGE_ASPECT_RATIO},
         )
         images = getattr(result, "images", ()) or ()
         if not images:

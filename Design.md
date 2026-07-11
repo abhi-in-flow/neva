@@ -46,6 +46,11 @@ A mobile-first React/Vite client owned by Arindam. It polls one state endpoint,
 renders the server-provided phase, records audio, and sends actions. It does
 not implement game rules.
 
+On the speaker confirm-label phase, the UI presents the system card label as
+the target concept the player was describing ("Your target concept was:" /
+"Did your recording describe this?"), not as an ASR or speech translation.
+The label still arrives only after a successful audio upload.
+
 Matchmaking remains active while the backend reports onboarding or queued.
 Successful queued responses retry with bounded jitter, closing the concurrent
 `SKIP LOCKED` enqueue race without overlapping requests. Same-native pairing
@@ -73,6 +78,19 @@ Generates culturally grounded picture cards with Nano Banana 2 Lite, verifies
 image-label consistency with Gemini, chooses decoys, and publishes complete
 decks atomically. Generation speed, cost, and rejection rate are first-class
 demo metrics.
+
+Card images are prompted as whimsical, visibly absurd scenes in authentic
+Indian regional settings (Assam / Northeast emphasis in the curated pool and
+demo concepts file), not centered studio product shots. Each card still has
+one unmistakable target concept or short action phrase so charades stays
+instantly guessable on a phone. Verification rejects missing humor, text,
+Western stock framing, and harmful stereotypes without changing the verify
+JSON schema. Live image calls request square ``1:1`` composition when the
+shared Gemini client supports native image config. Default curated concepts
+in ``deckgen/concepts.py`` and operator input via
+``build-docs/demo-deck-concepts.example.json`` (``--concepts-file`` /
+``scripts.deck_admin generate``) both supply scene-level funny situations,
+including a pink-elephant gag.
 
 ### Operator deck control
 

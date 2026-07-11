@@ -9,33 +9,31 @@ All prompts are templates; `{braces}` are runtime substitutions. Keep them in `d
 **Model:** `gemini-3.1-flash-lite-image` · one call per card · retry ≤ 2 on verification failure
 
 ```
-A single, clear photograph of {concept_phrase}, in an everyday {region_context}
-setting in India. The {concept_noun} is the one dominant subject, centered,
-occupying most of the frame, photographed at eye level in natural daylight.
+Whimsical, visibly absurd comic photograph of {concept_phrase}, set in an
+authentic {region_context} scene in India. The target concept "{concept_noun}"
+must be unmistakable at a glance on a phone screen: one clear focal gag, not a
+studio product shot.
 
-Style: realistic photography, warm natural light, shallow depth of field,
-clean uncluttered background typical of {region_context}.
+Composition: square mobile-card frame, eye-level or slight wide shot, warm
+natural daylight, lived-in regional depth. Supporting props/background activity
+are welcome when they enrich the joke; the target must remain unambiguous.
 
-Strict requirements:
-- Exactly one dominant subject; no competing objects of similar prominence
-- Absolutely NO text anywhere: no signage, labels, packaging text, posters,
-  banners, or writing of any kind
-- No people's faces in sharp focus (hands or backs of people are fine if
-  incidental)
-- No brand logos or recognizable brands
-- Culturally accurate to {region_context}: local materials, local styles,
-  local surroundings — not generic stock-photo Western settings
+Strict requirements include: no text/logos, no identifiable faces, no studio/
+white/blank backgrounds, no generic Western stock settings, no offensive
+stereotypes or unsafe framing, culturally accurate to {region_context}.
 ```
+
+Canonical text lives in `deckgen/prompts.py` (`NB2_IMAGE_PROMPT`).
 
 **Substitution table (examples):**
 
 | var | example values |
 |---|---|
-| `{concept_phrase}` | "a brass water pot (kalash)", "a bamboo fish trap", "a gamosa cloth draped on a chair", "a clay tea cup (kulhad) on a wooden bench", "a hand-pulled rickshaw", "jackfruit hanging on a tree" |
-| `{concept_noun}` | "water pot", "fish trap", "cloth", ... (short head noun) |
+| `{concept_phrase}` | "a bright pink elephant calmly sipping tea from a tiny clay kulhad at a roadside Assamese tea stall", "a village goat perched proudly on an old bicycle…" |
+| `{concept_noun}` | "pink elephant", "goat on bicycle", … (short phrase/action) |
 | `{region_context}` | "Assamese village", "Bengaluru urban street", "North Indian market", "rural Northeast Indian riverside" |
 
-**Concept list guidance (`deckgen/concepts.py`):** everyday nouns and simple actions that (a) every player recognizes instantly, (b) have distinct names across languages/dialects, (c) are visually unambiguous. Good categories: kitchen objects, food items, animals, weather, farm/market objects, transport, clothing, body actions (sleeping, cooking, fishing). Avoid: abstract concepts, brands, anything text-dependent, anything regionally offensive/ambiguous. Store each concept as `{id, concept_phrase, concept_noun, label: {en, hi, as, bn, ...}}` — the multilingual labels are what B sees as options, pre-translate them at deck build time with one batched Gemini call (prompt 1.4).
+**Concept list guidance (`deckgen/concepts.py`):** scene-level funny situations (not plain object nouns) that (a) every player recognizes instantly, (b) have distinct names across languages/dialects, (c) stay visually unambiguous at phone size, (d) show respectful cultural absurdity. Prefer Assam/Northeast-grounded gags. Avoid: abstract concepts, brands, text-dependent subjects, stereotypes, humiliation. Store each concept as `{id, concept_phrase, concept_noun, label: {en, hi, as, bn, ...}}`. Operator path: `build-docs/demo-deck-concepts.example.json` via `--concepts-file` / `scripts.deck_admin generate`.
 
 ---
 
@@ -44,26 +42,13 @@ Strict requirements:
 **Model:** `gemini-3.5-flash` · `thinking_level: low` · JSON schema enforced · input: generated image + label
 
 ```
-You are a strict quality gate for a picture-guessing game. Players will see
-this image and must recognize it as: "{label_en}".
-
-Evaluate the attached image:
-
-1. depicts_label: Does the image clearly and unambiguously depict
-   "{label_en}" as its single dominant subject? A player glancing at it for
-   2 seconds must think of "{label_en}" and not something else.
-2. has_text: Is there ANY visible text, lettering, signage, or writing
-   anywhere in the image?
-3. has_ambiguity: Could a reasonable player name this image as a different
-   common object instead? If yes, name the competing interpretation.
-4. cultural_ok: Does the scene look plausibly Indian ({region_context}),
-   not like Western stock photography?
-
-Respond ONLY with JSON matching the schema. Be strict: when in doubt, fail
-the image — regeneration is cheap.
+You are a strict quality gate for a picture-guessing charades game…
+(checks immediate target recognizability, no text, ambiguity, authentic
+regional context without harmful stereotypes, and clear visual absurdity/
+humor). Canonical text: deckgen/prompts.py VERIFY_IMAGE_PROMPT.
 ```
 
-**Response schema:**
+**Response schema:** unchanged
 ```json
 {
   "depicts_label": "boolean",
@@ -75,7 +60,9 @@ the image — regeneration is cheap.
   "reason": "string (one line)"
 }
 ```
-Accept only `verdict == "pass"` with `depicts_label && !has_text`. `cultural_ok=false` alone → regenerate with strengthened region clause.
+Accept only `verdict == "pass"` with `depicts_label && !has_text && cultural_ok`.
+Any reject regenerates with the strengthened region+humor clause from
+`deckgen/config.py`.
 
 ---
 

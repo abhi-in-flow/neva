@@ -2,52 +2,76 @@
   "region_tag": "assam",
   "concepts": [
     {
-      "concept_id": "jaapi-hat",
-      "label_en": "Jaapi hat",
-      "locale": "Assam",
-      "cultural_hint": "A traditional conical Assamese jaapi woven from bamboo and tokou palm leaves, displayed without any writing."
+      "concept_id": "pink-elephant-tea",
+      "label_en": "pink elephant",
+      "locale": "Assamese tea stall",
+      "cultural_hint": "A bright pink elephant calmly sipping tea from a tiny clay kulhad at a roadside Assamese tea stall, whimsical and instantly recognizable, with no text or logos."
     },
     {
-      "concept_id": "gamosa-cloth",
-      "label_en": "Gamosa cloth",
-      "locale": "Assam",
-      "cultural_hint": "A white Assamese handwoven gamosa with a red woven border, folded over a simple bamboo chair."
+      "concept_id": "goat-on-bicycle",
+      "label_en": "goat on bicycle",
+      "locale": "Assamese village courtyard",
+      "cultural_hint": "A village goat perched proudly on an old bicycle leaning against a mud wall in a Northeast Indian courtyard, funny but clear at phone size."
     },
     {
-      "concept_id": "xorai-tray",
-      "label_en": "Xorai tray",
+      "concept_id": "cow-in-gamosa",
+      "label_en": "cow in gamosa",
       "locale": "Assam",
-      "cultural_hint": "A traditional Assamese bell-metal xorai offering tray with its domed lid, placed on a woven mat."
+      "cultural_hint": "A calm cow draped in a red-bordered Assamese gamosa like a scarf, standing in a village courtyard without any writing."
     },
     {
-      "concept_id": "bamboo-fish-trap",
-      "label_en": "Bamboo fish trap",
+      "concept_id": "duck-in-jaapi",
+      "label_en": "duck in jaapi",
       "locale": "Rural Assam",
-      "cultural_hint": "A conical handwoven bamboo fish trap beside a village pond, shown as the single dominant object."
+      "cultural_hint": "A duck wearing an oversized Assamese jaapi hat beside a bamboo-edged village pond, absurd and unmistakable."
     },
     {
-      "concept_id": "areca-nut",
-      "label_en": "Areca nut",
+      "concept_id": "crow-stealing-jalebi",
+      "label_en": "crow stealing jalebi",
+      "locale": "Assam market",
+      "cultural_hint": "A crow mid-snatch lifting orange jalebi from a steel plate at an outdoor sweet stall in an Indian market lane."
+    },
+    {
+      "concept_id": "frog-on-dhol",
+      "label_en": "frog on dhol",
       "locale": "Assam",
-      "cultural_hint": "Fresh areca nuts gathered beneath a supari palm in an Assamese homestead garden, with no packaging or text."
+      "cultural_hint": "A small frog sitting like a drummer on an upright Assamese Bihu dhol against a bamboo wall."
     },
     {
-      "concept_id": "clay-tea-cup",
-      "label_en": "Clay tea cup",
-      "locale": "Assam tea stall",
-      "cultural_hint": "A small unglazed clay cup of hot tea on a weathered wooden bench at a local roadside tea stall."
+      "concept_id": "buffalo-in-boat",
+      "label_en": "buffalo in boat",
+      "locale": "Northeast riverside",
+      "cultural_hint": "A water buffalo sitting politely in a wooden river boat as if waiting for a ferry on a muddy Northeast riverside."
     },
     {
-      "concept_id": "bihu-dhol",
-      "label_en": "Bihu drum",
-      "locale": "Assam",
-      "cultural_hint": "A traditional Assamese dhol used during Bihu, resting against a bamboo wall with its straps visible."
+      "concept_id": "peacock-on-handcart",
+      "label_en": "peacock on handcart",
+      "locale": "Assam market lane",
+      "cultural_hint": "An Indian peacock perched atop a wooden handcart piled with vegetables in a lively but text-free market lane."
     },
     {
-      "concept_id": "banana-leaf-meal",
-      "label_en": "Meal on banana leaf",
-      "locale": "Assamese home",
-      "cultural_hint": "A simple Assamese rice meal served neatly on a fresh banana leaf in a domestic setting."
+      "concept_id": "monkey-with-kalash",
+      "label_en": "monkey with water pot",
+      "locale": "Assamese village",
+      "cultural_hint": "A monkey carefully balancing a brass kalash water pot on its head near a stone-rimmed village well."
+    },
+    {
+      "concept_id": "tortoise-in-slippers",
+      "label_en": "tortoise in slippers",
+      "locale": "Assam village path",
+      "cultural_hint": "A tortoise wearing oversized rubber slippers on a dusty village path after monsoon rain."
+    },
+    {
+      "concept_id": "goat-eating-banana-leaf",
+      "label_en": "goat eating meal",
+      "locale": "Assamese home courtyard",
+      "cultural_hint": "A goat politely eating from a banana-leaf Assamese rice meal laid out on a woven mat in a domestic courtyard."
+    },
+    {
+      "concept_id": "pink-elephant-bridge",
+      "label_en": "pink elephant on bridge",
+      "locale": "Northeast Assam stream",
+      "cultural_hint": "A bright pink elephant carefully crossing a narrow bamboo footbridge over a green Northeast stream, whimsical and phone-readable."
     }
   ]
 }

@@ -9,7 +9,8 @@ import '../styles/speaker.css';
 // card image element persists across the shrink-up seam. Label blackout is
 // architectural: SpeakerStage (the recording UI) never receives a label —
 // the label prop exists only on ConfirmPanel, and the server only sends it
-// in the confirm phase anyway. Never cached, never forwarded.
+// in the confirm phase anyway. Never cached, never forwarded. Confirm copy
+// presents the system card label as the target concept, not ASR/translation.
 //
 // Re-record is intentionally absent: the backend has no turn-reset endpoint
 // (Wave 1 cut). The client does not fake a return to speaking_view_image.
@@ -129,8 +130,9 @@ function ConfirmPanel({ label, clipUrl }) {
 
   return (
     <section className="confirm">
-      <p className="confirm-ask">You said it’s:</p>
+      <p className="confirm-ask">Your target concept was:</p>
       <p className="confirm-label" lang="und">{label}</p>
+      <p className="confirm-check">Did your recording describe this?</p>
 
       {clipUrl && (
         <button type="button" className="replay" onClick={replay}>

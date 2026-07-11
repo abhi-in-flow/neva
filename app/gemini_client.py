@@ -44,6 +44,9 @@ logger = logging.getLogger(__name__)
 
 # HTTP / SDK status codes treated as transient (retryable).
 _TRANSIENT_STATUS_CODES: frozenset[int] = frozenset({408, 429, 500, 502, 503, 504})
+_UNSUPPORTED_RESPONSE_SCHEMA_KEYS: frozenset[str] = frozenset(
+    {"additionalProperties", "additional_properties"}
+)
 
 # Keys whose values must never appear in logs.
 _SECRET_KEY_FRAGMENTS: frozenset[str] = frozenset(
@@ -71,6 +74,57 @@ _MEDIA_KEY_FRAGMENTS: frozenset[str] = frozenset(
         "file_data",
     }
 )
+
+
+def sanitize_response_schema(schema: Any) -> tuple[Any, int]:
+    """Copy a response schema while removing Developer API-incompatible keys.
+
+    The google-genai SDK serializes JSON Schema ``additionalProperties`` as
+    ``additional_properties``, but the Gemini Developer API rejects both
+    spellings in structured-output schemas. This sanitizer recursively copies
+    mappings and lists, preserving all other values and leaving the
+    caller-owned schema unchanged.
+
+    Args:
+        schema: Arbitrarily nested response schema data.
+
+    Returns:
+        A tuple of the sanitized copy and the number of removed keys.
+    """
+    logger.info(
+        "sanitize_response_schema called schema_type=%s",
+        type(schema).__name__,
+    )
+
+    def _sanitize(value: Any) -> tuple[Any, int]:
+        """Recursively copy schema containers and count removed keys."""
+        if isinstance(value, Mapping):
+            cleaned: dict[Any, Any] = {}
+            removed = 0
+            for key, child in value.items():
+                if key in _UNSUPPORTED_RESPONSE_SCHEMA_KEYS:
+                    removed += 1
+                    continue
+                cleaned_child, child_removed = _sanitize(child)
+                cleaned[key] = cleaned_child
+                removed += child_removed
+            return cleaned, removed
+        if isinstance(value, list):
+            cleaned_items: list[Any] = []
+            removed = 0
+            for child in value:
+                cleaned_child, child_removed = _sanitize(child)
+                cleaned_items.append(cleaned_child)
+                removed += child_removed
+            return cleaned_items, removed
+        return value, 0
+
+    cleaned_schema, removed_count = _sanitize(schema)
+    logger.info(
+        "sanitize_response_schema completed removed_key_count=%s",
+        removed_count,
+    )
+    return cleaned_schema, removed_count
 
 
 @dataclass(frozen=True)
@@ -1289,6 +1343,16 @@ class GeminiClient:
         if response_schema is not None:
             data["response_schema"] = response_schema
             data.setdefault("response_mime_type", "application/json")
+        if "response_schema" in data:
+            sanitized_schema, removed_count = sanitize_response_schema(
+                data["response_schema"]
+            )
+            data["response_schema"] = sanitized_schema
+            logger.info(
+                "_resolve_content_config sanitized response schema "
+                "removed_key_count=%s",
+                removed_count,
+            )
         if response_mime_type is not None:
             data["response_mime_type"] = response_mime_type
         if thinking_level is not None:

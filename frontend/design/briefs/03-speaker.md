@@ -17,7 +17,7 @@ Production-ready; the whole speaker flow (view-image, recording, uploading, conf
 ## 5. Layout Strategy
 - **View-image:** card image owns ~65% of viewport; quiet always-present instruction line ("Hold the button — describe this in Assamese"); giant button (~96–112px circle) bottom-center. Nothing else.
 - **Recording (held):** image dims slightly; 8s ring timer draws around the button; button breathes with live mic input level — visible proof it hears you.
-- **Confirm-label:** image shrinks upward to a thumbnail; label arrives big beneath in full-size Noto ("You said it's: **পানীৰ ঘট** — right?"); local-blob replay button; warm-accent "Yes, send it →" + quiet "Re-record". The shrink-up transition is the seam making two states feel like one flow.
+- **Confirm-label:** image shrinks upward to a thumbnail; system card label arrives big beneath in full-size Noto ("Your target concept was: **পানীৰ ঘট**" / "Did your recording describe this?"); local-blob replay button; warm-accent "Yes, send it →" + quiet "Re-record". Copy must not imply ASR/translation. The shrink-up transition is the seam making two states feel like one flow.
 
 ## 6. Key States
 - View-image default; **first-turn-ever coach**: one-time pulsing hint on the button, never shown again

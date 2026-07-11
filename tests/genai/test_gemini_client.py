@@ -23,8 +23,10 @@ from app.gemini_client import (
     inline_part,
     is_transient_error,
     sanitize_for_log,
+    sanitize_response_schema,
 )
 from app.models import GEMINI_FLASH, NANO_BANANA_LITE
+from deckgen.prompts import TRANSLATE_RESPONSE_SCHEMA
 from tests.genai.fakes import (
     FakeApiCallRecorder,
     FakeContentResponse,
@@ -35,6 +37,7 @@ from tests.genai.fakes import (
     api_error,
     sample_audio_blob,
 )
+from worker.prompts import TRIAGE_RESPONSE_SCHEMA
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +98,139 @@ def fake_sleep(sleeps: list[float]):
         sleeps.append(delay)
 
     return _sleep
+
+
+def _schema_contains_key(value: Any, disallowed: set[str]) -> bool:
+    """Return whether a nested schema contains any disallowed mapping key.
+
+    Args:
+        value: Nested schema value to inspect.
+        disallowed: Exact mapping keys that must be absent.
+
+    Returns:
+        True when any nested mapping contains a disallowed key.
+    """
+    logger.info(
+        "_schema_contains_key called value_type=%s disallowed_count=%s",
+        type(value).__name__,
+        len(disallowed),
+    )
+    if isinstance(value, dict):
+        return bool(disallowed.intersection(value)) or any(
+            _schema_contains_key(child, disallowed) for child in value.values()
+        )
+    if isinstance(value, list):
+        return any(_schema_contains_key(child, disallowed) for child in value)
+    return False
+
+
+def test_sanitize_response_schema_removes_nested_keys_without_mutation() -> None:
+    """Remove both unsupported spellings recursively without changing input."""
+    logger.info(
+        "test_sanitize_response_schema_removes_nested_keys_without_mutation called"
+    )
+    original = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "labels": {
+                "type": "object",
+                "additional_properties": {"type": "string"},
+                "allOf": [
+                    {
+                        "type": "object",
+                        "additionalProperties": {"type": "number"},
+                    }
+                ],
+            }
+        },
+        "required": ["labels"],
+    }
+    expected_original = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "labels": {
+                "type": "object",
+                "additional_properties": {"type": "string"},
+                "allOf": [
+                    {
+                        "type": "object",
+                        "additionalProperties": {"type": "number"},
+                    }
+                ],
+            }
+        },
+        "required": ["labels"],
+    }
+
+    cleaned, removed_count = sanitize_response_schema(original)
+
+    assert removed_count == 3
+    assert original == expected_original
+    assert cleaned is not original
+    assert cleaned["type"] == "object"
+    assert cleaned["required"] == ["labels"]
+    assert cleaned["properties"]["labels"]["type"] == "object"
+    assert cleaned["properties"]["labels"]["allOf"][0] == {"type": "object"}
+    assert not _schema_contains_key(
+        cleaned, {"additionalProperties", "additional_properties"}
+    )
+
+
+@pytest.mark.parametrize(
+    ("schema", "expected_type"),
+    [
+        (TRIAGE_RESPONSE_SCHEMA, "object"),
+        (TRANSLATE_RESPONSE_SCHEMA, "array"),
+    ],
+)
+def test_known_response_schemas_resolve_without_unsupported_keys(
+    schema: dict[str, object],
+    expected_type: str,
+) -> None:
+    """Resolve worker/deck schemas while preserving ordinary schema fields.
+
+    Args:
+        schema: Production response schema passed through the shared resolver.
+        expected_type: Top-level JSON Schema type that must remain unchanged.
+    """
+    logger.info(
+        "test_known_response_schemas_resolve_without_unsupported_keys called "
+        "expected_type=%s",
+        expected_type,
+    )
+    client = GeminiClient(
+        settings=_settings(),
+        transport=FakeGeminiTransport(),
+    )
+    resolved = client._resolve_content_config(
+        config=None,
+        response_schema=schema,
+        response_mime_type=None,
+        thinking_level=None,
+    )
+
+    assert resolved is not None
+    assert resolved.response_mime_type == "application/json"
+    resolved_schema = resolved.response_schema
+    assert isinstance(resolved_schema, dict)
+    assert resolved_schema["type"] == expected_type
+    assert not _schema_contains_key(
+        resolved_schema, {"additionalProperties", "additional_properties"}
+    )
+    if expected_type == "object":
+        assert "additionalProperties" in str(schema)
+        assert "properties" in resolved_schema
+        assert "required" in resolved_schema
+    else:
+        assert resolved_schema["items"]["required"] == ["id", "labels"]
+        assert resolved_schema["items"]["properties"]["labels"]["required"] == [
+            "en",
+            "hi",
+            "as",
+            "bn",
+        ]
 
 
 async def test_generate_json_returns_parsed_dict(fake_sleep) -> None:

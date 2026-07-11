@@ -30,6 +30,8 @@ DECOY_MODEL = GEMINI_FLASH
 MAX_IMAGE_RETRIES = 2  # retries after the first attempt (≤ 3 total attempts)
 VERIFY_THINKING_LEVEL = "low"
 IMAGE_MIME_TYPE = "image/png"
+# Native Gemini image option; translated to ImageConfig by the shared client.
+IMAGE_ASPECT_RATIO = "1:1"
 FAKE_IMAGE_BYTES = b"\x89PNG\r\n\x1a\nFAKE_DECKGEN_IMAGE"
 
 # --- Deck composition ---
@@ -63,7 +65,10 @@ DEFAULT_REGION = "assam"
 STRENGTHENED_REGION_SUFFIX = (
     " Emphasize unmistakably local Indian materials, clothing styles, "
     "architecture, and surroundings for {region_context}; avoid any Western "
-    "stock-photo look."
+    "stock-photo look, studio backdrop, or plain catalog framing. Heighten "
+    "the visible whimsical absurdity so the gag is obvious at phone size, "
+    "while keeping the single target concept instantly guessable and free of "
+    "stereotypes or humiliation."
 )
 
 # --- Publication ---

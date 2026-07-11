@@ -1,10 +1,9 @@
 """Curated culturally safe Indian concepts for picture-deck generation.
 
-Each concept is an everyday noun or simple scene that players recognize
-instantly, has distinct names across Indian languages, and is visually
-unambiguous in a single-subject photograph. Abstract ideas, brands,
-text-dependent subjects, and regionally offensive or ambiguous items are
-excluded.
+Each concept is a scene-level funny situation players recognize instantly,
+has distinct names across Indian languages, and stays visually unambiguous
+in a single absurd photograph. Abstract ideas, brands, text-dependent
+subjects, and regionally offensive or humiliating items are excluded.
 
 Architectural boundary: this module is data only. Pipeline code selects
 concepts and never invents labels outside this curated pool (plus batched
@@ -33,7 +32,7 @@ class Concept:
     Attributes:
         id: Stable concept identifier used in decoy selection JSON.
         concept_phrase: Full phrase substituted into the NB2 image prompt.
-        concept_noun: Short head noun for the image prompt.
+        concept_noun: Short head noun or action phrase for the image prompt.
         labels: Multilingual label map; ``en`` is required. Other languages
             may be pre-seeded or filled by the translation step.
         category: Broad semantic category used for logging and decoy hints.
@@ -50,315 +49,547 @@ class Concept:
     cultural_hint: str | None = None
 
 
-# Everyday Indian domestic / rural / market concepts — culturally safe.
+# Scene-level funny Assam / Northeast-leaning concepts — culturally respectful.
 CONCEPTS: tuple[Concept, ...] = (
     Concept(
-        id="kalash",
-        concept_phrase="a brass water pot (kalash)",
-        concept_noun="water pot",
-        labels={"en": "water pot", "hi": "कलश", "as": "কলহ", "bn": "কলস"},
-        category="kitchen",
-    ),
-    Concept(
-        id="kulhad",
-        concept_phrase="a clay tea cup (kulhad) on a wooden bench",
-        concept_noun="clay cup",
-        labels={"en": "clay cup", "hi": "कुल्हड़", "as": "মাটিৰ কাপ", "bn": "মাটির কাপ"},
-        category="kitchen",
-    ),
-    Concept(
-        id="tawa",
-        concept_phrase="a flat iron griddle (tawa) on a clay stove",
-        concept_noun="griddle",
-        labels={"en": "griddle", "hi": "तवा", "as": "তাৱা", "bn": "তাওয়া"},
-        category="kitchen",
-    ),
-    Concept(
-        id="pressure_cooker",
-        concept_phrase="a stainless steel pressure cooker on a stove",
-        concept_noun="pressure cooker",
-        labels={"en": "pressure cooker", "hi": "प्रेशर कुकर", "as": "প্ৰেছাৰ কুকাৰ", "bn": "প্রেশার কুকার"},
-        category="kitchen",
-    ),
-    Concept(
-        id="rolling_pin",
-        concept_phrase="a wooden rolling pin (belan) on a flour-dusted board",
-        concept_noun="rolling pin",
-        labels={"en": "rolling pin", "hi": "बेलन", "as": "বেলন", "bn": "বেলন"},
-        category="kitchen",
-    ),
-    Concept(
-        id="banana_leaf",
-        concept_phrase="a fresh green banana leaf plate with simple food",
-        concept_noun="banana leaf",
-        labels={"en": "banana leaf", "hi": "केले का पत्ता", "as": "কলপাত", "bn": "কলার পাতা"},
-        category="food",
-    ),
-    Concept(
-        id="jackfruit",
-        concept_phrase="jackfruit hanging on a tree",
-        concept_noun="jackfruit",
-        labels={"en": "jackfruit", "hi": "कटहल", "as": "কঁঠাল", "bn": "কাঁঠাল"},
-        category="food",
-    ),
-    Concept(
-        id="mango",
-        concept_phrase="a ripe mango on a woven basket",
-        concept_noun="mango",
-        labels={"en": "mango", "hi": "आम", "as": "আম", "bn": "আম"},
-        category="food",
-    ),
-    Concept(
-        id="coconut",
-        concept_phrase="a whole green coconut with a straw hole",
-        concept_noun="coconut",
-        labels={"en": "coconut", "hi": "नारियल", "as": "নাৰিকল", "bn": "নারকেল"},
-        category="food",
-    ),
-    Concept(
-        id="jalebi",
-        concept_phrase="a plate of fresh orange jalebi sweets",
-        concept_noun="jalebi",
-        labels={"en": "jalebi", "hi": "जलेबी", "as": "জিলিপি", "bn": "জিলিপি"},
-        category="food",
-    ),
-    Concept(
-        id="idli",
-        concept_phrase="steamed idli cakes on a steel plate with chutney",
-        concept_noun="idli",
-        labels={"en": "idli", "hi": "इडली", "as": "ইডলি", "bn": "ইডলি"},
-        category="food",
-    ),
-    Concept(
-        id="samosa",
-        concept_phrase="two golden samosas on a paper plate",
-        concept_noun="samosa",
-        labels={"en": "samosa", "hi": "समोसा", "as": "চিংৰা", "bn": "সিংগাড়া"},
-        category="food",
-    ),
-    Concept(
-        id="cow",
-        concept_phrase="a calm Indian cow standing near a village path",
-        concept_noun="cow",
-        labels={"en": "cow", "hi": "गाय", "as": "গাই", "bn": "গরু"},
+        id="pink_elephant",
+        concept_phrase=(
+            "a bright pink elephant calmly sipping tea from a tiny clay kulhad "
+            "at a roadside Assamese tea stall"
+        ),
+        concept_noun="pink elephant",
+        labels={
+            "en": "pink elephant",
+            "hi": "गुलाबी हाथी",
+            "as": "গোলাপী হাতী",
+            "bn": "গোলাপি হাতি",
+        },
         category="animal",
     ),
     Concept(
-        id="goat",
-        concept_phrase="a goat standing in a dusty village courtyard",
-        concept_noun="goat",
-        labels={"en": "goat", "hi": "बकरी", "as": "ছাগলী", "bn": "ছাগল"},
+        id="goat_on_bicycle",
+        concept_phrase=(
+            "a village goat perched proudly on an old bicycle leaning against "
+            "a mud wall in a Northeast Indian courtyard"
+        ),
+        concept_noun="goat on bicycle",
+        labels={
+            "en": "goat on bicycle",
+            "hi": "साइकिल पर बकरी",
+            "as": "চাইকেলত ছাগলী",
+            "bn": "সাইকেলে ছাগল",
+        },
         category="animal",
     ),
     Concept(
-        id="peacock",
-        concept_phrase="an Indian peacock with its feathers partially fanned",
-        concept_noun="peacock",
-        labels={"en": "peacock", "hi": "मोर", "as": "ময়ূৰ", "bn": "ময়ূর"},
+        id="cow_in_gamosa",
+        concept_phrase=(
+            "a calm cow draped in a red-bordered Assamese gamosa like a scarf, "
+            "standing in a village courtyard"
+        ),
+        concept_noun="cow in gamosa",
+        labels={
+            "en": "cow in gamosa",
+            "hi": "गमोसा वाली गाय",
+            "as": "গামোচা পিন্ধা গাই",
+            "bn": "গামছা পরা গরু",
+        },
         category="animal",
     ),
     Concept(
-        id="crow",
-        concept_phrase="a crow perched on a clay rooftop edge",
-        concept_noun="crow",
-        labels={"en": "crow", "hi": "कौआ", "as": "কাউৰী", "bn": "কাক"},
+        id="crow_stealing_jalebi",
+        concept_phrase=(
+            "a crow mid-snatch lifting orange jalebi from a steel plate at an "
+            "outdoor sweet stall"
+        ),
+        concept_noun="crow stealing jalebi",
+        labels={
+            "en": "crow stealing jalebi",
+            "hi": "जलेबी चुराता कौआ",
+            "as": "জিলিপি চোৰোৱা কাউৰী",
+            "bn": "জিলিপি চুরি করা কাক",
+        },
         category="animal",
     ),
     Concept(
-        id="fish",
-        concept_phrase="fresh river fish laid on a market banana leaf",
-        concept_noun="fish",
-        labels={"en": "fish", "hi": "मछली", "as": "মাছ", "bn": "মাছ"},
+        id="peacock_on_handcart",
+        concept_phrase=(
+            "an Indian peacock perched atop a wooden handcart piled with "
+            "vegetables in a market lane"
+        ),
+        concept_noun="peacock on handcart",
+        labels={
+            "en": "peacock on handcart",
+            "hi": "ठेले पर मोर",
+            "as": "ঠেলাত ময়ূৰ",
+            "bn": "ঠেলায় ময়ূর",
+        },
         category="animal",
     ),
     Concept(
-        id="bamboo_trap",
-        concept_phrase="a bamboo fish trap beside a shallow stream",
-        concept_noun="fish trap",
-        labels={"en": "fish trap", "hi": "मछली जाल", "as": "জাকৈ", "bn": "চাই"},
+        id="duck_in_jaapi",
+        concept_phrase=(
+            "a duck wearing an oversized Assamese jaapi hat beside a village "
+            "pond edged with bamboo"
+        ),
+        concept_noun="duck in jaapi",
+        labels={
+            "en": "duck in jaapi",
+            "hi": "जापी पहना बतख",
+            "as": "জাপি পিন্ধা হাঁহ",
+            "bn": "জাপি পরা হাঁস",
+        },
+        category="animal",
+    ),
+    Concept(
+        id="buffalo_in_boat",
+        concept_phrase=(
+            "a water buffalo sitting politely in a wooden river boat as if "
+            "waiting for a ferry ride on a Northeast riverside"
+        ),
+        concept_noun="buffalo in boat",
+        labels={
+            "en": "buffalo in boat",
+            "hi": "नाव में भैंस",
+            "as": "নাৱত ম'হ",
+            "bn": "নৌকায় মহিষ",
+        },
+        category="animal",
+    ),
+    Concept(
+        id="frog_on_dhol",
+        concept_phrase=(
+            "a small frog sitting like a drummer on an upright Assamese Bihu "
+            "dhol against a bamboo wall"
+        ),
+        concept_noun="frog on dhol",
+        labels={
+            "en": "frog on dhol",
+            "hi": "ढोल पर मेंढक",
+            "as": "ঢোলত ভেকুলী",
+            "bn": "ঢোলে ব্যাঙ",
+        },
+        category="animal",
+    ),
+    Concept(
+        id="monkey_with_kalash",
+        concept_phrase=(
+            "a monkey carefully balancing a brass kalash water pot on its head "
+            "near a village well"
+        ),
+        concept_noun="monkey with water pot",
+        labels={
+            "en": "monkey with water pot",
+            "hi": "कलश वाला बंदर",
+            "as": "কলহ লৈ থকা বান্দৰ",
+            "bn": "কলস নিয়ে বানর",
+        },
+        category="animal",
+    ),
+    Concept(
+        id="rooster_on_hand_pump",
+        concept_phrase=(
+            "a rooster standing proudly on the handle of a village hand pump "
+            "as if announcing the morning"
+        ),
+        concept_noun="rooster on hand pump",
+        labels={
+            "en": "rooster on hand pump",
+            "hi": "हैंड पंप पर मुर्गा",
+            "as": "নলকুপত কুকুৰা",
+            "bn": "কলে মোরগ",
+        },
+        category="animal",
+    ),
+    Concept(
+        id="cat_in_loom",
+        concept_phrase=(
+            "a cat tangled comically in colorful threads of a traditional "
+            "Assamese handloom"
+        ),
+        concept_noun="cat in handloom",
+        labels={
+            "en": "cat in handloom",
+            "hi": "हथकरघे में बिल्ली",
+            "as": "তাঁতত মেকুৰী",
+            "bn": "তাঁতে বিড়াল",
+        },
+        category="animal",
+    ),
+    Concept(
+        id="goat_eating_banana_leaf_meal",
+        concept_phrase=(
+            "a goat politely eating from a banana-leaf Assamese rice meal laid "
+            "out on a woven mat"
+        ),
+        concept_noun="goat eating banana-leaf meal",
+        labels={
+            "en": "goat eating meal",
+            "hi": "केला पत्ते पर खाने वाली बकरी",
+            "as": "কলপাতৰ ভাত খোৱা ছাগলী",
+            "bn": "কলার পাতায় খাওয়া ছাগল",
+        },
+        category="animal",
+    ),
+    Concept(
+        id="crow_on_lantern",
+        concept_phrase=(
+            "a crow balanced on a glowing kerosene lantern at dusk outside a "
+            "thatched Assamese house"
+        ),
+        concept_noun="crow on lantern",
+        labels={
+            "en": "crow on lantern",
+            "hi": "लालटेन पर कौआ",
+            "as": "লণ্ঠনত কাউৰী",
+            "bn": "লণ্ঠনে কাক",
+        },
+        category="animal",
+    ),
+    Concept(
+        id="tortoise_in_slippers",
+        concept_phrase=(
+            "a tortoise wearing oversized rubber slippers on a dusty village "
+            "path after monsoon rain"
+        ),
+        concept_noun="tortoise in slippers",
+        labels={
+            "en": "tortoise in slippers",
+            "hi": "चप्पल पहना कछुआ",
+            "as": "চেণ্ডেল পিন্ধা কাছ",
+            "bn": "চপ্পল পরা কচ্ছপ",
+        },
+        category="animal",
+    ),
+    Concept(
+        id="fish_under_umbrella",
+        concept_phrase=(
+            "fresh river fish oddly sheltered under an open black umbrella "
+            "beside a rainy Assamese market stall"
+        ),
+        concept_noun="fish under umbrella",
+        labels={
+            "en": "fish under umbrella",
+            "hi": "छाते के नीचे मछली",
+            "as": "ছাটিৰ তলত মাছ",
+            "bn": "ছাতার নিচে মাছ",
+        },
+        category="animal",
+    ),
+    Concept(
+        id="peacock_in_rickshaw",
+        concept_phrase=(
+            "a peacock riding as a passenger in a hand-pulled rickshaw on a "
+            "quiet town street"
+        ),
+        concept_noun="peacock in rickshaw",
+        labels={
+            "en": "peacock in rickshaw",
+            "hi": "रिक्शा में मोर",
+            "as": "ৰিক্সাত ময়ূৰ",
+            "bn": "রিকশায় ময়ূর",
+        },
+        category="animal",
+    ),
+    Concept(
+        id="monkey_rolling_roti",
+        concept_phrase=(
+            "a monkey using a wooden belan rolling pin on a flour-dusted board "
+            "beside a clay stove"
+        ),
+        concept_noun="monkey rolling dough",
+        labels={
+            "en": "monkey rolling dough",
+            "hi": "रोटी बेलता बंदर",
+            "as": "ৰুটি বেলা বান্দৰ",
+            "bn": "রুটি বেলা বানর",
+        },
+        category="kitchen",
+    ),
+    Concept(
+        id="cow_at_potter_wheel",
+        concept_phrase=(
+            "a curious cow watching a spinning potter's wheel with a half-shaped "
+            "clay pot in a village workshop"
+        ),
+        concept_noun="cow at potter's wheel",
+        labels={
+            "en": "cow at potter's wheel",
+            "hi": "चाक के पास गाय",
+            "as": "কুমাৰৰ চক্ৰৰ ওচৰত গাই",
+            "bn": "কুমোরের চাকার কাছে গরু",
+        },
         category="farm",
     ),
     Concept(
-        id="sickle",
-        concept_phrase="a curved farming sickle resting on harvested grain",
-        concept_noun="sickle",
-        labels={"en": "sickle", "hi": "हंसिया", "as": "কাচি", "bn": "কাস্তে"},
-        category="farm",
-    ),
-    Concept(
-        id="plough",
-        concept_phrase="a wooden plough in a muddy field",
-        concept_noun="plough",
-        labels={"en": "plough", "hi": "हल", "as": "নাঙল", "bn": "লাঙ্গল"},
-        category="farm",
-    ),
-    Concept(
-        id="handcart",
-        concept_phrase="a wooden handcart loaded with vegetables",
-        concept_noun="handcart",
-        labels={"en": "handcart", "hi": "ठेला", "as": "ঠেলা", "bn": "ঠেলা"},
-        category="transport",
-    ),
-    Concept(
-        id="rickshaw",
-        concept_phrase="a hand-pulled rickshaw on a quiet street",
-        concept_noun="rickshaw",
-        labels={"en": "rickshaw", "hi": "रिक्शा", "as": "ৰিক্সা", "bn": "রিকশা"},
-        category="transport",
-    ),
-    Concept(
-        id="bicycle",
-        concept_phrase="an old bicycle leaning against a mud wall",
-        concept_noun="bicycle",
-        labels={"en": "bicycle", "hi": "साइकिल", "as": "চাইকেল", "bn": "সাইকেল"},
-        category="transport",
-    ),
-    Concept(
-        id="boat",
-        concept_phrase="a wooden river boat tied at a muddy bank",
-        concept_noun="boat",
-        labels={"en": "boat", "hi": "नाव", "as": "নাও", "bn": "নৌকা"},
-        category="transport",
-    ),
-    Concept(
-        id="gamosa",
-        concept_phrase="a gamosa cloth draped on a wooden chair",
-        concept_noun="cloth",
-        labels={"en": "gamosa cloth", "hi": "गमोसा", "as": "গামোচা", "bn": "গামছা"},
-        category="clothing",
-    ),
-    Concept(
-        id="umbrella",
-        concept_phrase="an open black umbrella standing in monsoon rain",
-        concept_noun="umbrella",
-        labels={"en": "umbrella", "hi": "छाता", "as": "ছাটি", "bn": "ছাতা"},
-        category="clothing",
-    ),
-    Concept(
-        id="slippers",
-        concept_phrase="a pair of rubber slippers outside a doorway",
-        concept_noun="slippers",
-        labels={"en": "slippers", "hi": "चप्पल", "as": "চেণ্ডেল", "bn": "চপ্পল"},
-        category="clothing",
-    ),
-    Concept(
-        id="turmeric",
-        concept_phrase="a small brass bowl of bright yellow turmeric powder",
-        concept_noun="turmeric",
-        labels={"en": "turmeric", "hi": "हल्दी", "as": "হালধি", "bn": "হলুদ"},
-        category="kitchen",
-    ),
-    Concept(
-        id="lantern",
-        concept_phrase="an old kerosene lantern glowing at dusk",
-        concept_noun="lantern",
-        labels={"en": "lantern", "hi": "लालटेन", "as": "লণ্ঠন", "bn": "লণ্ঠন"},
+        id="duck_on_charpai",
+        concept_phrase=(
+            "a duck nestled like a guest on a woven rope charpai in a sunny "
+            "courtyard"
+        ),
+        concept_noun="duck on rope cot",
+        labels={
+            "en": "duck on rope cot",
+            "hi": "चारपाई पर बतख",
+            "as": "খাটত হাঁহ",
+            "bn": "খাটে হাঁস",
+        },
         category="household",
     ),
     Concept(
-        id="charpai",
-        concept_phrase="a woven rope cot (charpai) in a courtyard",
-        concept_noun="cot",
-        labels={"en": "rope cot", "hi": "चारपाई", "as": "খাট", "bn": "খাট"},
+        id="goat_at_water_pump",
+        concept_phrase=(
+            "a goat pressing the handle of a village hand pump with its hoof "
+            "while water splashes into a brass pot"
+        ),
+        concept_noun="goat at hand pump",
+        labels={
+            "en": "goat at hand pump",
+            "hi": "हैंड पंप पर बकरी",
+            "as": "নলকুপত ছাগলী",
+            "bn": "কলে ছাগল",
+        },
         category="household",
     ),
     Concept(
-        id="mortar_pestle",
-        concept_phrase="a stone mortar and pestle with crushed spices",
-        concept_noun="mortar",
-        labels={"en": "mortar and pestle", "hi": "ओखली मूसल", "as": "খুন্দনা", "bn": "হামানদিস্তা"},
-        category="kitchen",
-    ),
-    Concept(
-        id="earthen_stove",
-        concept_phrase="a traditional earthen cooking stove with firewood",
-        concept_noun="stove",
-        labels={"en": "earthen stove", "hi": "चूल्हा", "as": "চুলা", "bn": "উনুন"},
-        category="kitchen",
-    ),
-    Concept(
-        id="water_pump",
-        concept_phrase="a hand-operated village water pump",
-        concept_noun="water pump",
-        labels={"en": "hand pump", "hi": "हैंड पंप", "as": "নলকুপ", "bn": "কল"},
+        id="crow_on_temple_bell",
+        concept_phrase=(
+            "a crow perched on a brass temple bell hanging from a wooden beam, "
+            "as if about to ring it"
+        ),
+        concept_noun="crow on temple bell",
+        labels={
+            "en": "crow on temple bell",
+            "hi": "घंटी पर कौआ",
+            "as": "ঘণ্টাত কাউৰী",
+            "bn": "ঘণ্টায় কাক",
+        },
         category="household",
     ),
     Concept(
-        id="banyan",
-        concept_phrase="aerial roots of a large banyan tree",
-        concept_noun="banyan tree",
-        labels={"en": "banyan tree", "hi": "बरगद", "as": "বটগছ", "bn": "বটগাছ"},
+        id="buffalo_with_jaapi",
+        concept_phrase=(
+            "a water buffalo wearing a conical Assamese jaapi hat in a green "
+            "paddy field"
+        ),
+        concept_noun="buffalo with jaapi",
+        labels={
+            "en": "buffalo with jaapi",
+            "hi": "जापी पहनी भैंस",
+            "as": "জাপি পিন্ধা ম'হ",
+            "bn": "জাপি পরা মহিষ",
+        },
+        category="animal",
+    ),
+    Concept(
+        id="monkey_with_oil_lamp",
+        concept_phrase=(
+            "a monkey carefully holding a lit clay diya oil lamp near a dusk "
+            "courtyard doorway"
+        ),
+        concept_noun="monkey with oil lamp",
+        labels={
+            "en": "monkey with oil lamp",
+            "hi": "दीया लिए बंदर",
+            "as": "চাকি লৈ থকা বান্দৰ",
+            "bn": "প্রদীপ নিয়ে বানর",
+        },
+        category="household",
+    ),
+    Concept(
+        id="peacock_under_banyan",
+        concept_phrase=(
+            "a peacock sheltering under aerial roots of a giant banyan while "
+            "holding an open umbrella in its beak"
+        ),
+        concept_noun="peacock with umbrella",
+        labels={
+            "en": "peacock with umbrella",
+            "hi": "छाता लिए मोर",
+            "as": "ছাটি লৈ থকা ময়ূৰ",
+            "bn": "ছাতা নিয়ে ময়ূর",
+        },
         category="nature",
     ),
     Concept(
-        id="lotus",
-        concept_phrase="a pink lotus flower floating on a pond",
-        concept_noun="lotus",
-        labels={"en": "lotus", "hi": "कमल", "as": "পদুম", "bn": "পদ্ম"},
-        category="nature",
+        id="frog_in_kulhad",
+        concept_phrase=(
+            "a tiny frog sitting inside a clay kulhad tea cup on a wooden tea "
+            "stall bench"
+        ),
+        concept_noun="frog in clay cup",
+        labels={
+            "en": "frog in clay cup",
+            "hi": "कुल्हड़ में मेंढक",
+            "as": "মাটিৰ কাপত ভেকুলী",
+            "bn": "মাটির কাপে ব্যাঙ",
+        },
+        category="kitchen",
     ),
     Concept(
-        id="rain_cloud",
-        concept_phrase="dark monsoon clouds over green fields",
-        concept_noun="monsoon clouds",
-        labels={"en": "monsoon clouds", "hi": "मानसून के बादल", "as": "বৰষুণৰ ডাৱৰ", "bn": "বর্ষার মেঘ"},
-        category="weather",
+        id="goat_pulling_rickshaw",
+        concept_phrase=(
+            "a determined goat appearing to pull an empty hand-pulled rickshaw "
+            "down a quiet lane"
+        ),
+        concept_noun="goat pulling rickshaw",
+        labels={
+            "en": "goat pulling rickshaw",
+            "hi": "रिक्शा खींचती बकरी",
+            "as": "ৰিক্সা টনা ছাগলী",
+            "bn": "রিকশা টানা ছাগল",
+        },
+        category="transport",
     ),
     Concept(
-        id="well",
-        concept_phrase="a circular village well with a stone rim",
-        concept_noun="well",
-        labels={"en": "well", "hi": "कुआँ", "as": "নাদ", "bn": "কুয়ো"},
+        id="cat_on_sewing_machine",
+        concept_phrase=(
+            "a cat lounging on a black manual sewing machine as if supervising "
+            "the tailor's table"
+        ),
+        concept_noun="cat on sewing machine",
+        labels={
+            "en": "cat on sewing machine",
+            "hi": "सिलाई मशीन पर बिल्ली",
+            "as": "চিলাই মেচিনত মেকুৰী",
+            "bn": "সেলাই মেশিনে বিড়াল",
+        },
         category="household",
     ),
     Concept(
-        id="temple_bell",
-        concept_phrase="a brass temple bell hanging from a wooden beam",
-        concept_noun="temple bell",
-        labels={"en": "temple bell", "hi": "घंटी", "as": "ঘণ্টা", "bn": "ঘণ্টা"},
-        category="household",
+        id="crow_with_gamosa_cape",
+        concept_phrase=(
+            "a crow wearing a small gamosa draped like a superhero cape on a "
+            "clay rooftop edge"
+        ),
+        concept_noun="crow with gamosa cape",
+        labels={
+            "en": "crow with gamosa",
+            "hi": "गमोसा वाला कौआ",
+            "as": "গামোচা পিন্ধা কাউৰী",
+            "bn": "গামছা পরা কাক",
+        },
+        category="animal",
     ),
     Concept(
-        id="dhol",
-        concept_phrase="a traditional dhol drum resting upright",
-        concept_noun="drum",
-        labels={"en": "dhol drum", "hi": "ढोल", "as": "ঢোল", "bn": "ঢোল"},
-        category="household",
+        id="duck_rowing_boat",
+        concept_phrase=(
+            "a duck standing in a wooden river boat holding a tiny paddle as if "
+            "rowing across muddy water"
+        ),
+        concept_noun="duck rowing boat",
+        labels={
+            "en": "duck rowing boat",
+            "hi": "नाव खेता बतख",
+            "as": "নাও বাওৱা হাঁহ",
+            "bn": "নৌকা বাইছে হাঁস",
+        },
+        category="transport",
     ),
     Concept(
-        id="sewing_machine",
-        concept_phrase="a black manual sewing machine on a wooden table",
-        concept_noun="sewing machine",
-        labels={"en": "sewing machine", "hi": "सिलाई मशीन", "as": "চিলাই মেচিন", "bn": "সেলাই মেশিন"},
-        category="household",
-    ),
-    Concept(
-        id="oil_lamp",
-        concept_phrase="a small clay oil lamp (diya) with a lit wick",
-        concept_noun="oil lamp",
-        labels={"en": "oil lamp", "hi": "दीया", "as": "চাকি", "bn": "প্রদীপ"},
-        category="household",
-    ),
-    Concept(
-        id="sugarcane",
-        concept_phrase="cut stalks of sugarcane stacked at a stall",
-        concept_noun="sugarcane",
-        labels={"en": "sugarcane", "hi": "गन्ना", "as": "কুঁহিয়াৰ", "bn": "আখ"},
+        id="monkey_on_sugarcane",
+        concept_phrase=(
+            "a monkey sitting atop a tall stack of cut sugarcane at a roadside "
+            "stall, looking mischievous"
+        ),
+        concept_noun="monkey on sugarcane",
+        labels={
+            "en": "monkey on sugarcane",
+            "hi": "गन्ने पर बंदर",
+            "as": "কুঁহিয়াৰত বান্দৰ",
+            "bn": "আখে বানর",
+        },
         category="food",
     ),
     Concept(
-        id="potter_wheel",
-        concept_phrase="a clay pot being shaped on a potter's wheel",
-        concept_noun="potter's wheel",
-        labels={"en": "potter's wheel", "hi": "चाक", "as": "কুমাৰৰ চক্ৰ", "bn": "কুমোরের চাকা"},
+        id="rooster_chasing_handcart",
+        concept_phrase=(
+            "a rooster mid-stride chasing a wooden vegetable handcart down a "
+            "dusty market lane"
+        ),
+        concept_noun="rooster chasing handcart",
+        labels={
+            "en": "rooster chasing handcart",
+            "hi": "ठेला पीछे मुर्गा",
+            "as": "ঠেলা খেদা কুকুৰা",
+            "bn": "ঠেলা তাড়া মোরগ",
+        },
+        category="transport",
+    ),
+    Concept(
+        id="frog_with_sickle",
+        concept_phrase=(
+            "a frog sitting beside a curved farming sickle on harvested grain, "
+            "as if resting after fieldwork"
+        ),
+        concept_noun="frog with sickle",
+        labels={
+            "en": "frog with sickle",
+            "hi": "हंसिया वाला मेंढक",
+            "as": "কাচি লৈ থকা ভেকুলী",
+            "bn": "কাস্তে নিয়ে ব্যাঙ",
+        },
         category="farm",
     ),
     Concept(
-        id="weaving_loom",
-        concept_phrase="a traditional handloom with colorful threads",
-        concept_noun="handloom",
-        labels={"en": "handloom", "hi": "हथकरघा", "as": "তাঁত", "bn": "তাঁত"},
-        category="household",
+        id="cat_in_mortar",
+        concept_phrase=(
+            "a cat peeking out of a large stone spice mortar next to a wooden "
+            "pestle in a kitchen courtyard"
+        ),
+        concept_noun="cat in mortar",
+        labels={
+            "en": "cat in mortar",
+            "hi": "ओखली में बिल्ली",
+            "as": "খুন্দনাত মেকুৰী",
+            "bn": "হামানদিস্তায় বিড়াল",
+        },
+        category="kitchen",
+    ),
+    Concept(
+        id="peacock_fanning_jalebi",
+        concept_phrase=(
+            "a peacock partially fanning its feathers over a plate of fresh "
+            "orange jalebi as if cooling the sweets"
+        ),
+        concept_noun="peacock fanning jalebi",
+        labels={
+            "en": "peacock fanning jalebi",
+            "hi": "जलेबी पर मोर",
+            "as": "জিলিপিৰ ওপৰত ময়ূৰ",
+            "bn": "জিলিপির উপর ময়ূর",
+        },
+        category="food",
+    ),
+    Concept(
+        id="buffalo_under_lotus",
+        concept_phrase=(
+            "a water buffalo in a pond with a pink lotus flower comically "
+            "resting on its head"
+        ),
+        concept_noun="buffalo with lotus",
+        labels={
+            "en": "buffalo with lotus",
+            "hi": "कमल वाली भैंस",
+            "as": "পদুম লৈ থকা ম'হ",
+            "bn": "পদ্ম নিয়ে মহিষ",
+        },
+        category="nature",
+    ),
+    Concept(
+        id="pink_elephant_on_bridge",
+        concept_phrase=(
+            "a bright pink elephant carefully crossing a narrow bamboo footbridge "
+            "over a green Northeast stream"
+        ),
+        concept_noun="pink elephant on bridge",
+        labels={
+            "en": "pink elephant on bridge",
+            "hi": "पुल पर गुलाबी हाथी",
+            "as": "দলঙত গোলাপী হাতী",
+            "bn": "সাঁকোয় গোলাপি হাতি",
+        },
+        category="animal",
     ),
 )
 

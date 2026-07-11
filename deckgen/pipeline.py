@@ -278,7 +278,15 @@ async def generate_verified_image(
 
         metrics.record_reject()
         last_reason = str(verdict.get("reason", "rejected"))
-        strengthen = needs_region_emphasis(verdict) or strengthen
+        # Any reject strengthens regional + humor guidance on the next attempt.
+        strengthen = True
+        if needs_region_emphasis(verdict):
+            logger.info(
+                "generate_verified_image cultural_ok failed concept_id=%s "
+                "attempt=%s",
+                concept.id,
+                attempt,
+            )
         logger.info(
             "generate_verified_image rejected concept_id=%s attempt=%s "
             "reason=%s strengthen_next=%s",

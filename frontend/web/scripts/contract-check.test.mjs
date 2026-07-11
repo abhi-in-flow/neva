@@ -56,6 +56,16 @@ test('speaking_view_image never exposes label (corpus safety)', () => {
   assert.equal(data.turn?.label, null);
 });
 
+test('speaker confirm copy references target concept, not speech translation', () => {
+  const source = readFileSync(join(root, 'src', 'screens', 'Speaker.jsx'), 'utf8');
+  assert.match(source, /Your target concept was:/);
+  assert.match(source, /Did your recording describe this\?/);
+  assert.equal(source.includes('You said'), false);
+  // Label remains confirm-phase only: SpeakerStage must not take a label prop.
+  assert.match(source, /function SpeakerStage\(\{ rec, native \}\)/);
+  assert.match(source, /function ConfirmPanel\(\{ label, clipUrl \}\)/);
+});
+
 test('guessing options use UUID string ids', () => {
   const data = JSON.parse(readFileSync(join(fixturesDir, 'guessing.json'), 'utf8'));
   for (const opt of data.turn.options) {

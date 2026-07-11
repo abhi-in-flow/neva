@@ -318,9 +318,9 @@ async def test_postgres_publisher_uses_transaction_and_live_flip(
     cards = [
         CardRecord(
             card_id=card_id,
-            concept_id="kalash",
+            concept_id="pink_elephant",
             image_bytes=FAKE_IMAGE_BYTES,
-            label_common={"en": "water pot"},
+            label_common={"en": "pink elephant"},
             decoy_card_ids=[],
         )
     ]
