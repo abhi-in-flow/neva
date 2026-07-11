@@ -2,14 +2,37 @@
 
 Turn a multiplayer charades game into a zero-touch, validated dialect speech-data pipeline.
 
-## Hackathon framing
+## Hackathon tracks
 
-This project is built for the Google DeepMind Bangalore Hackathon:
+Built for the [Google DeepMind Bangalore Hackathon](hackathon-details.md). We compete in:
 
-- **Track 3 — High-Throughput Creative Workflows:** Nano Banana 2 Lite creates fresh, culturally grounded picture decks that prevent memorization and enable regional customization.
-- **Gemma 4 special prize:** validated speech/text pairs flow directly into an optional same-day local LoRA fine-tune.
+### Primary — Problem Statement 3: High-Throughput Creative Workflows with NB2 Lite
 
-The primary demo claim is pipeline throughput and unit economics—not a model-quality claim.
+**Focus technology:** Nano Banana 2 Lite (`gemini-3.1-flash-lite-image`)
+
+Traditional image gen is too slow/expensive for live pipelines. NB2 Lite makes
+high-volume, programmatic generation load-bearing. Dialect Data Factory uses it
+as an automated regional picture-deck factory: curated concepts → generate →
+verify → publish → activate for live play. Throughput, $/image, and reject rate
+are first-class demo metrics—not a prompt-box-to-image toy.
+
+Supporting stack from the event AI list: Gemini 3.5 Flash (`gemini-3.5-flash`)
+for verification, speech triage, and structured game/ops calls.
+
+### Bonus — Special Prize: Best Use of Gemma 4 (Local-First Agents on Gemma)
+
+**Focus technology:** Gemma On-Device (Gemma 4 E2B & E4B)
+
+Validated speech→label pairs from the game become a same-day local corpus for
+an optional QLoRA fine-tune under `tune/` (isolated from Postgres). The demo
+claim is the local data loop feeding Gemma—not cloud chat with a local skin.
+Tier 2 (train/compare) is cut-first if venue GPU/time does not allow.
+
+**Primary pitch:** Track 3 pipeline velocity and unit economics. Gemma is the
+bonus track when the adapter path is green.
+
+Official schedule, rules, judging weights, and prizes: [`hackathon-details.md`](hackathon-details.md).
+Living design: [`Design.md`](Design.md). Agent rules: [`AGENTS.md`](AGENTS.md).
 
 ## Architecture
 
@@ -19,9 +42,7 @@ The primary demo claim is pipeline throughput and unit economics—not a model-q
 - Independent game, deck-generation, cleaning-worker, and fine-tuning components
 - Mobile player UI at `/`, venue TV at `/tv`, operator admin at `/admin`
 
-The frozen integration contracts live in [`contracts/`](contracts/). Living design
-notes are in [`Design.md`](Design.md). Agent/coding rules are in
-[`AGENTS.md`](AGENTS.md).
+The frozen integration contracts live in [`contracts/`](contracts/).
 
 ## Quick start (Docker demo stack)
 
