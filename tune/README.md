@@ -31,7 +31,7 @@ The exact Unsloth checkpoint and its `google/gemma-4-E4B-it` base model declare
 [Apache License 2.0](https://ai.google.dev/gemma/docs/gemma_4_license). Google's
 [Gemma Terms of Use](https://ai.google.dev/gemma/terms) explicitly send Gemma 4
 users to that separate license; their appendix covers earlier Gemma families.
-The repository's AGPL-3.0 license covers project code and does not relicense
+The repository's MIT license covers project code and does not relicense
 Gemma weights, generated adapters, participant audio, or corpus data. Anyone
 redistributing weights or an adapter must preserve the Apache 2.0 license,
 notices, attribution, and modification notices.
