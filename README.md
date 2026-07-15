@@ -10,6 +10,11 @@ Nano Banana 2 Lite–generated regional picture decks, partners guess the concep
 in a shared language, and automated quality gates clean the accepted audio
 before eligible records enter an append-only local training corpus.
 
+Neva began as a build at the **Google DeepMind Bangalore Hackathon** and is now maintained as
+a research artifact: the hackathon proved the communicative-validation loop works across
+languages; the open research question is whether the same loop, run *within* a language across
+dialects, yields dialect labels for free. See [`docs/RESEARCH.md`](docs/RESEARCH.md).
+
 **Validated has two independent meanings:** meaning is validated when a partner
 with a different mother tongue correctly guesses the concept; audio is validated
 by automated speech-quality, contamination, and de-duplication gates.
@@ -18,7 +23,7 @@ High-throughput creative generation is load-bearing: fresh regional decks keep
 play useful while **play produces the corpus. No annotator, no transcription
 pass.**
 
-![How we use Gemini and Gemma — gameplay to validated speech-concept pairs to local inference](docs-assets/gemini-gemma-use.png)
+![How we use Gemini and Gemma — gameplay to validated speech-concept pairs to local inference](assets/gemini-gemma-use.png)
 
 ## Hackathon tracks
 
@@ -60,7 +65,7 @@ Living design: [`Design.md`](Design.md). Agent rules: [`AGENTS.md`](AGENTS.md).
 - Independent game, deck-generation, cleaning-worker, and fine-tuning components
 - Mobile player UI at `/`, venue TV at `/tv`, operator admin at `/admin`
 
-![Dialect Data Factory high-level architecture — players, host stack, Gemini, and Gemma](docs-assets/architecture.png)
+![Dialect Data Factory high-level architecture — players, host stack, Gemini, and Gemma](assets/architecture.png)
 
 The frozen integration contracts live in [`contracts/`](contracts/).
 
@@ -225,6 +230,31 @@ verified `$artifacts/adapter`. Full smoke/fixture docs: [`tune/README.md`](tune/
 **Judge framing:** a handful of real rows proves corpus → adapter on authentic
 speech; grow the append-only corpus and re-freeze for any generalization claim.
 
+## Research direction
+
+The hackathon build validates a concept when two players with **different mother tongues**
+agree on it through a **shared bridge language**. That is cross-*language* validation.
+
+The research question this repo now tracks is one step narrower and, we think, more novel:
+
+> Run the same loop **same-language, across dialects**. If a Goalpariya speaker's clue is
+> solved quickly by Goalpariya listeners and slowly by Sivasagar listeners, that
+> comprehension asymmetry *is* a dialect label — and yields a perceptual distance matrix
+> between varieties at no annotation cost.
+
+Two hypotheses:
+
+- **H1 (quality):** guess-success predicts human-rated utterance quality better than an
+  ASR-confidence baseline (Whisper / MMS).
+- **H2 (dialect):** the speaker-dialect × listener-dialect success matrix recovers known
+  Assamese dialect groupings.
+
+This is a **direction, not a built feature.** The current pipeline uses a shared bridge
+language, so it does not yet measure dialect asymmetry. Positioning, prior work, and the
+path from the hackathon artifact to a workshop paper are in
+[`docs/RESEARCH.md`](docs/RESEARCH.md). Phased plan and go/no-go gates in
+[`docs/ROADMAP.md`](docs/ROADMAP.md).
+
 ## What this is not
 
 - **Not an ASR or transcription corpus.** Records are speech→concept pairs; the
@@ -270,6 +300,7 @@ tune/         Isolated Gemma LoRA harness
 frontend/     React/Vite player + TV + /admin surfaces
 scripts/      Schema, deck admin, pipeline view, bootstrap helpers
 build-docs/   Briefs, architecture notes, demo concept JSON
+docs/         Research positioning: RESEARCH.md, ROADMAP.md
 docs-assets/  README diagrams and pitch visuals
 phase-plan/   Wave orchestration and runbooks
 data/         Runtime-only local audio, decks, and JSONL corpus shards
@@ -281,6 +312,11 @@ Do not add game behavior to the frontend; it renders the server-owned state
 contract. Do not change a contract without coordinating both backend and
 frontend owners. Keep Gemini model IDs in `app/models.py` and prompts in named
 modules (`deckgen/prompts.py`, `worker/prompts.py`).
+
+## Acknowledgements
+
+Prototyped at the Google DeepMind Bangalore Hackathon. Neva is not affiliated with or endorsed
+by Google or Google DeepMind; the hackathon is where the loop was first built and tested.
 
 ## License
 
