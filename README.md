@@ -341,7 +341,12 @@ will be added at Phase 3 (see [`docs/ROADMAP.md`](docs/ROADMAP.md)).
 ## Acknowledgements
 
 Prototyped at the Google DeepMind Bangalore Hackathon. Neva is not affiliated with or endorsed by
-Google or Google DeepMind; the hackathon is where the loop was first built and tested.
+Google or Google DeepMind; the hackathon is where the loop was first built and tested
+
+## Contributors
+
+* **Arindam** ([@kunMythos](https://github.com/kunMythos)) — Co-Creator / Hackathon Contributor (Early-stage architecture & design)
+* **Abhi** ([@abhi-in-flow](https://github.com/abhi-in-flow)) — CTO & Lead Developer
 
 ## License
 
